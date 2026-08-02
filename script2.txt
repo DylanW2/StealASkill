@@ -1005,7 +1005,7 @@ local function createZone()
 
 	local zone = Instance.new("Part")
 	zone.Name = "DebugZone"
-	zone.Size = Vector3.new(20, 10, 20)
+	zone.Size = Vector3.new(20, 30, 75)
 	zone.Position = root.Position
 	zone.Anchored = true
 	zone.CanCollide = false
