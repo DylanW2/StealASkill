@@ -1,0 +1,894 @@
+local RUN_ONLY_IN_STUDIO = false
+
+local ALLOWED_USER_IDS = {
+}
+
+local REQUIRE_TARGET_CONSENT = false
+local CONSENT_ATTRIBUTE = "SecurityProbeConsent"
+local TARGET_ATTRIBUTE = "SecurityProbeTarget"
+
+local DEFAULTS = {
+	Damage = 100000,
+	Stun = 1,
+	CantHit = 123,
+	RagdollTime = 0.2,
+	RagdollJumps = 1,
+	VelX = 0,
+	VelY = 0,
+	VelZ = 0,
+	Timeout = 1.5,
+}
+
+local CAPS = {
+	MaxDamage = 999999999999,
+	MaxStun = 999999999999,
+	MaxCantHit = 999999999999,
+	MaxRagdollTime = 999999999999,
+	MaxRagdollJumps = 999999999999,
+	MaxVelocity = 999999999999,
+	MinTimeout = -999999999999,
+	MaxTimeout = 999999999999,
+}
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+if not LocalPlayer then
+	warn("[SecurityProbe] No LocalPlayer. This must be a LocalScript.")
+	return
+end
+
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local old = PlayerGui:FindFirstChild("CompactSecurityProbeGui")
+if old then
+	old:Destroy()
+end
+
+local selectedPlayer = LocalPlayer
+
+local allowedByUserId = true
+if next(ALLOWED_USER_IDS) then
+	allowedByUserId = ALLOWED_USER_IDS[LocalPlayer.UserId] == true
+end
+
+local allowedByStudio = true
+if RUN_ONLY_IN_STUDIO then
+	allowedByStudio = RunService:IsStudio()
+end
+
+local REMOTE_CODE = "EMMFOSS__!ZCNSJNXCSDWQSANBX"
+
+local ALLREMBINDS
+local MainEvent
+local mainOk = false
+local mainErr = nil
+
+--// ----------------------------------------------------
+--// Helpers
+--// ----------------------------------------------------
+
+local function n(value, fallback, minValue, maxValue)
+	local number = tonumber(value)
+	if number == nil then
+		number = fallback
+	end
+
+	if minValue ~= nil then
+		number = math.max(minValue, number)
+	end
+
+	if maxValue ~= nil then
+		number = math.min(maxValue, number)
+	end
+
+	return number
+end
+
+local function waitUntil(timeout, predicate)
+	local start = os.clock()
+
+	while os.clock() - start < timeout do
+		local ok, result = pcall(predicate)
+		if ok and result then
+			return true
+		end
+
+		task.wait(0.04)
+	end
+
+	return false
+end
+
+local function isTargetAllowed(player)
+	if not REQUIRE_TARGET_CONSENT then
+		return true
+	end
+
+	if not player then
+		return false
+	end
+
+	if player == LocalPlayer then
+		return true
+	end
+
+	if player:GetAttribute(CONSENT_ATTRIBUTE) == true then
+		return true
+	end
+
+	local character = player.Character
+	if character then
+		if character:GetAttribute(CONSENT_ATTRIBUTE) == true then
+			return true
+		end
+
+		if character:GetAttribute(TARGET_ATTRIBUTE) == true then
+			return true
+		end
+	end
+
+	return false
+end
+
+local function getTargetParts()
+	if not selectedPlayer then
+		return nil, "No selected player"
+	end
+
+	local character = selectedPlayer.Character
+	if not character then
+		return nil, "Target has no character"
+	end
+
+	local humanoid = character:FindFirstChild("Humanoid")
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	local stats = character:FindFirstChild("CharcterStats")
+
+	if not humanoid then
+		return nil, "Target missing Humanoid"
+	end
+
+	if not hrp then
+		return nil, "Target missing HumanoidRootPart"
+	end
+
+	if not stats then
+		return nil, "Target missing CharcterStats"
+	end
+
+	local stun = stats:FindFirstChild("Stun")
+	local ragdoll = stats:FindFirstChild("IsRagdoll")
+	local cantHit = stats:FindFirstChild("CantHit")
+
+	if not stun then
+		return nil, "Target missing Stun"
+	end
+
+	if not ragdoll then
+		return nil, "Target missing IsRagdoll"
+	end
+
+	if not cantHit then
+		return nil, "Target missing CantHit"
+	end
+
+	return {
+		Character = character,
+		Humanoid = humanoid,
+		HRP = hrp,
+		Stats = stats,
+		Stun = stun,
+		Ragdoll = ragdoll,
+		CantHit = cantHit,
+	}, nil
+end
+
+local function fireServerFunction(functionName, args)
+	if not MainEvent then
+		return false, "MainEvent missing"
+	end
+
+	MainEvent:FireServer(REMOTE_CODE, functionName, args)
+	return true
+end
+
+local function getTimeout()
+	return n(DEFAULTS.Timeout, DEFAULTS.Timeout, CAPS.MinTimeout, CAPS.MaxTimeout)
+end
+
+--// ----------------------------------------------------
+--// GUI
+--// ----------------------------------------------------
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "CompactSecurityProbeGui"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = false
+gui.DisplayOrder = 999999
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = PlayerGui
+
+local frame = Instance.new("Frame")
+frame.Name = "Window"
+frame.Size = UDim2.fromOffset(430, 330)
+frame.Position = UDim2.fromOffset(40, 120)
+frame.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Visible = true
+frame.Parent = gui
+
+local frameCorner = Instance.new("UICorner")
+frameCorner.CornerRadius = UDim.new(0, 10)
+frameCorner.Parent = frame
+
+local frameStroke = Instance.new("UIStroke")
+frameStroke.Color = Color3.fromRGB(85, 85, 105)
+frameStroke.Thickness = 1
+frameStroke.Parent = frame
+
+local top = Instance.new("Frame")
+top.Name = "TopBar"
+top.Size = UDim2.new(1, 0, 0, 34)
+top.BackgroundColor3 = Color3.fromRGB(32, 32, 42)
+top.BorderSizePixel = 0
+top.Active = true
+top.Parent = frame
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -80, 1, 0)
+title.Position = UDim2.fromOffset(10, 0)
+title.BackgroundTransparency = 1
+title.Text = "Security Probe"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 15
+title.Font = Enum.Font.GothamBold
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = top
+
+local close = Instance.new("TextButton")
+close.Size = UDim2.fromOffset(28, 24)
+close.Position = UDim2.new(1, -34, 0, 5)
+close.BackgroundColor3 = Color3.fromRGB(70, 55, 60)
+close.Text = "X"
+close.TextColor3 = Color3.fromRGB(255, 255, 255)
+close.TextSize = 13
+close.Font = Enum.Font.GothamBold
+close.Parent = top
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = close
+
+close.MouseButton1Click:Connect(function()
+	gui:Destroy()
+end)
+
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1, -16, 0, 26)
+status.Position = UDim2.fromOffset(8, 40)
+status.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+status.Text = "  GUI loaded. Loading remotes..."
+status.TextColor3 = Color3.fromRGB(230, 230, 240)
+status.TextSize = 12
+status.Font = Enum.Font.Gotham
+status.TextXAlignment = Enum.TextXAlignment.Left
+status.Parent = frame
+
+local statusCorner = Instance.new("UICorner")
+statusCorner.CornerRadius = UDim.new(0, 7)
+statusCorner.Parent = status
+
+local function setStatus(text, color)
+	status.Text = "  " .. tostring(text)
+	if color then
+		status.BackgroundColor3 = color
+	end
+end
+
+--// Draggable top bar
+
+do
+	local dragging = false
+	local dragStart
+	local startPos
+
+	top.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = frame.Position
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if not dragging then
+			return
+		end
+
+		if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+
+		local delta = input.Position - dragStart
+
+		frame.Position = UDim2.new(
+			startPos.X.Scale,
+			startPos.X.Offset + delta.X,
+			startPos.Y.Scale,
+			startPos.Y.Offset + delta.Y
+		)
+	end)
+end
+
+local function makeButton(parent, text, x, y, w, h, color)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.fromOffset(w, h)
+	b.Position = UDim2.fromOffset(x, y)
+	b.BackgroundColor3 = color
+	b.Text = text
+	b.TextColor3 = Color3.fromRGB(255, 255, 255)
+	b.TextSize = 12
+	b.Font = Enum.Font.GothamBold
+	b.AutoButtonColor = true
+	b.Parent = parent
+
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, 7)
+	c.Parent = b
+
+	return b
+end
+
+local function makeBox(parent, label, x, y, default)
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.fromOffset(72, 22)
+	lbl.Position = UDim2.fromOffset(x, y)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = label
+	lbl.TextColor3 = Color3.fromRGB(200, 200, 215)
+	lbl.TextSize = 11
+	lbl.Font = Enum.Font.Gotham
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Parent = parent
+
+	local box = Instance.new("TextBox")
+	box.Size = UDim2.fromOffset(52, 22)
+	box.Position = UDim2.fromOffset(x + 72, y)
+	box.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+	box.Text = tostring(default)
+	box.TextColor3 = Color3.fromRGB(255, 255, 255)
+	box.TextSize = 11
+	box.Font = Enum.Font.Code
+	box.ClearTextOnFocus = false
+	box.Parent = parent
+
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, 6)
+	c.Parent = box
+
+	return box
+end
+
+local controls = Instance.new("Frame")
+controls.Name = "Controls"
+controls.Size = UDim2.new(1, -16, 0, 126)
+controls.Position = UDim2.fromOffset(8, 72)
+controls.BackgroundTransparency = 1
+controls.Parent = frame
+
+local targetButton = makeButton(controls, "Target: Me", 0, 0, 130, 28, Color3.fromRGB(60, 120, 80))
+local runAllButton = makeButton(controls, "Run All", 138, 0, 76, 28, Color3.fromRGB(50, 115, 220))
+local clearButton = makeButton(controls, "Clear", 222, 0, 62, 28, Color3.fromRGB(75, 75, 90))
+local copyButton = makeButton(controls, "Copy", 292, 0, 62, 28, Color3.fromRGB(65, 95, 120))
+
+local damageBox = makeBox(controls, "Damage", 0, 36, DEFAULTS.Damage)
+local stunBox = makeBox(controls, "Stun", 0, 62, DEFAULTS.Stun)
+local cantHitBox = makeBox(controls, "CantHit", 0, 88, DEFAULTS.CantHit)
+
+local ragTimeBox = makeBox(controls, "RagTime", 150, 36, DEFAULTS.RagdollTime)
+local ragJumpBox = makeBox(controls, "RagJump", 150, 62, DEFAULTS.RagdollJumps)
+
+local velXBox = makeBox(controls, "Vel X", 300, 36, DEFAULTS.VelX)
+local velYBox = makeBox(controls, "Vel Y", 300, 62, DEFAULTS.VelY)
+local velZBox = makeBox(controls, "Vel Z", 300, 88, DEFAULTS.VelZ)
+
+local testButtonsFrame = Instance.new("Frame")
+testButtonsFrame.Name = "TestButtons"
+testButtonsFrame.Size = UDim2.new(1, -16, 0, 34)
+testButtonsFrame.Position = UDim2.fromOffset(8, 198)
+testButtonsFrame.BackgroundTransparency = 1
+testButtonsFrame.Parent = frame
+
+local damageButton = makeButton(testButtonsFrame, "Damage", 0, 0, 86, 28, Color3.fromRGB(120, 70, 70))
+local stateComboButton = makeButton(testButtonsFrame, "State x3", 94, 0, 110, 28, Color3.fromRGB(120, 80, 120))
+local alvcButton = makeButton(testButtonsFrame, "ALVC", 212, 0, 78, 28, Color3.fromRGB(95, 80, 45))
+
+local results = Instance.new("ScrollingFrame")
+results.Name = "Results"
+results.Size = UDim2.new(1, -16, 1, -240)
+results.Position = UDim2.fromOffset(8, 232)
+results.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+results.BorderSizePixel = 0
+results.CanvasSize = UDim2.fromOffset(0, 0)
+results.ScrollBarThickness = 5
+results.Parent = frame
+
+local resultsCorner = Instance.new("UICorner")
+resultsCorner.CornerRadius = UDim.new(0, 8)
+resultsCorner.Parent = results
+
+local resultsLayout = Instance.new("UIListLayout")
+resultsLayout.Padding = UDim.new(0, 4)
+resultsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+resultsLayout.Parent = results
+
+local resultsPadding = Instance.new("UIPadding")
+resultsPadding.PaddingTop = UDim.new(0, 6)
+resultsPadding.PaddingLeft = UDim.new(0, 6)
+resultsPadding.PaddingRight = UDim.new(0, 6)
+resultsPadding.PaddingBottom = UDim.new(0, 6)
+resultsPadding.Parent = results
+
+resultsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	results.CanvasSize = UDim2.fromOffset(0, resultsLayout.AbsoluteContentSize.Y + 16)
+end)
+
+--// ----------------------------------------------------
+--// Load remotes after GUI exists
+--// ----------------------------------------------------
+
+task.spawn(function()
+	mainOk, mainErr = pcall(function()
+		ALLREMBINDS = ReplicatedStorage:WaitForChild("ALLREMBINDS", 10)
+		assert(ALLREMBINDS, "ALLREMBINDS not found")
+
+		MainEvent = ALLREMBINDS:WaitForChild("Pls_Dont_Hack_Plssssssssss", 10)
+		assert(MainEvent, "Pls_Dont_Hack_Plssssssssss not found")
+	end)
+
+	if not mainOk then
+		setStatus("Remote load failed: " .. tostring(mainErr), Color3.fromRGB(140, 55, 55))
+	elseif not allowedByStudio then
+		setStatus("Refused: not running in Studio", Color3.fromRGB(120, 70, 45))
+	elseif not allowedByUserId then
+		setStatus("Refused: user not allowlisted", Color3.fromRGB(120, 70, 45))
+	else
+		setStatus("Ready. Drag top bar. Pick target/test.", Color3.fromRGB(35, 35, 45))
+	end
+end)
+
+--// ----------------------------------------------------
+--// Results
+--// ----------------------------------------------------
+
+local resultData = {}
+
+local function addResult(name, state, detail)
+	local color = Color3.fromRGB(70, 80, 110)
+
+	if state == "VULNERABLE" then
+		color = Color3.fromRGB(175, 55, 55)
+	elseif state == "BLOCKED" then
+		color = Color3.fromRGB(45, 120, 70)
+	elseif state == "SKIPPED" then
+		color = Color3.fromRGB(120, 105, 45)
+	end
+
+	local row = Instance.new("TextLabel")
+	row.Size = UDim2.new(1, -4, 0, 38)
+	row.BackgroundColor3 = Color3.fromRGB(38, 38, 48)
+	row.TextColor3 = Color3.fromRGB(235, 235, 245)
+	row.TextSize = 11
+	row.Font = Enum.Font.Gotham
+	row.TextXAlignment = Enum.TextXAlignment.Left
+	row.TextYAlignment = Enum.TextYAlignment.Center
+	row.Text = string.format("  [%s] %s\n  %s", state, name, detail or "")
+	row.Parent = results
+
+	local rowCorner = Instance.new("UICorner")
+	rowCorner.CornerRadius = UDim.new(0, 7)
+	rowCorner.Parent = row
+
+	local stripe = Instance.new("Frame")
+	stripe.Size = UDim2.new(0, 4, 1, 0)
+	stripe.BackgroundColor3 = color
+	stripe.BorderSizePixel = 0
+	stripe.Parent = row
+
+	table.insert(resultData, {
+		Name = name,
+		State = state,
+		Detail = detail,
+	})
+
+	results.CanvasPosition = Vector2.new(0, math.max(0, results.CanvasSize.Y.Offset))
+end
+
+local function blocked(name, detail)
+	addResult(name, "BLOCKED", detail)
+end
+
+local function vuln(name, detail)
+	addResult(name, "VULNERABLE", detail)
+end
+
+local function skipped(name, detail)
+	addResult(name, "SKIPPED", detail)
+end
+
+local function clearResults()
+	for _, child in ipairs(results:GetChildren()) do
+		if child:IsA("TextLabel") then
+			child:Destroy()
+		end
+	end
+
+	table.clear(resultData)
+	setStatus("Cleared", Color3.fromRGB(35, 35, 45))
+end
+
+local function buildReport()
+	local v, b, s = 0, 0, 0
+
+	for _, item in ipairs(resultData) do
+		if item.State == "VULNERABLE" then
+			v += 1
+		elseif item.State == "BLOCKED" then
+			b += 1
+		elseif item.State == "SKIPPED" then
+			s += 1
+		end
+	end
+
+	local lines = {}
+
+	table.insert(lines, "Combat Security Probe Report")
+	table.insert(lines, "========================================")
+	table.insert(lines, "Runner: " .. LocalPlayer.Name .. " (" .. tostring(LocalPlayer.UserId) .. ")")
+	table.insert(lines, "Target: " .. (selectedPlayer and selectedPlayer.Name or "nil"))
+	table.insert(lines, "PlaceId: " .. tostring(game.PlaceId))
+	table.insert(lines, "JobId: " .. tostring(game.JobId))
+	table.insert(lines, "Studio: " .. tostring(RunService:IsStudio()))
+	table.insert(lines, "")
+	table.insert(lines, string.format("Summary: %d vulnerable, %d blocked, %d skipped.", v, b, s))
+	table.insert(lines, "")
+
+	for i, item in ipairs(resultData) do
+		table.insert(lines, string.format("%02d. [%s] %s", i, item.State, item.Name))
+		if item.Detail then
+			table.insert(lines, "    " .. tostring(item.Detail))
+		end
+	end
+
+	return table.concat(lines, "\n")
+end
+
+local function copyReport()
+	local report = buildReport()
+
+	if typeof(setclipboard) == "function" then
+		local ok = pcall(function()
+			setclipboard(report)
+		end)
+
+		if ok then
+			setStatus("Report copied", Color3.fromRGB(45, 105, 65))
+			return
+		end
+	end
+
+	print(report)
+	setStatus("Clipboard unavailable; printed report", Color3.fromRGB(70, 80, 110))
+end
+
+--// ----------------------------------------------------
+--// Target selector
+--// ----------------------------------------------------
+
+local function refreshTarget()
+	if not selectedPlayer then
+		targetButton.Text = "Target: none"
+		targetButton.BackgroundColor3 = Color3.fromRGB(120, 70, 45)
+		return
+	end
+
+	if selectedPlayer == LocalPlayer then
+		targetButton.Text = "Target: Me"
+		targetButton.BackgroundColor3 = Color3.fromRGB(60, 120, 80)
+		return
+	end
+
+	if isTargetAllowed(selectedPlayer) then
+		targetButton.Text = "Target: " .. selectedPlayer.Name
+		targetButton.BackgroundColor3 = Color3.fromRGB(60, 120, 80)
+	else
+		targetButton.Text = "Target: " .. selectedPlayer.Name
+		targetButton.BackgroundColor3 = Color3.fromRGB(120, 70, 45)
+	end
+end
+
+targetButton.MouseButton1Click:Connect(function()
+	local list = Players:GetPlayers()
+
+	table.sort(list, function(a, b)
+		return a.Name < b.Name
+	end)
+
+	local index = table.find(list, selectedPlayer) or 1
+	index += 1
+
+	if index > #list then
+		index = 1
+	end
+
+	selectedPlayer = list[index]
+	refreshTarget()
+end)
+
+Players.PlayerAdded:Connect(refreshTarget)
+Players.PlayerRemoving:Connect(function(player)
+	if selectedPlayer == player then
+		selectedPlayer = LocalPlayer
+	end
+
+	refreshTarget()
+end)
+
+refreshTarget()
+
+--// ----------------------------------------------------
+--// Test precheck
+--// ----------------------------------------------------
+
+local function precheck(testName)
+	if not mainOk or not MainEvent then
+		skipped(testName, "Remotes not loaded")
+		return nil
+	end
+
+	local parts, err = getTargetParts()
+	if not parts then
+		skipped(testName, err)
+		setStatus(err, Color3.fromRGB(120, 70, 45))
+		return nil
+	end
+
+	return parts
+end
+
+--// ----------------------------------------------------
+--// Individual tests
+--// ----------------------------------------------------
+
+local function testDamage()
+	local name = "Damage"
+	local p = precheck(name)
+	if not p then return end
+
+	setStatus("Testing damage...", Color3.fromRGB(45, 65, 100))
+
+	local amount = n(damageBox.Text, DEFAULTS.Damage, 0, CAPS.MaxDamage)
+	damageBox.Text = tostring(amount)
+
+	if amount <= 0 then
+		skipped(name, "Damage amount is 0")
+		return
+	end
+
+	local before = p.Humanoid.Health
+
+	fireServerFunction("Main_Damger_OC_R", {
+		p.Character,
+		{
+			D = amount,
+			F = LocalPlayer.Character or p.Character,
+		},
+	})
+
+	local changed = waitUntil(getTimeout(), function()
+		return p.Humanoid.Health < before - 0.01
+	end)
+
+	local after = p.Humanoid.Health
+
+	if changed then
+		vuln(name, string.format("Health %.2f -> %.2f", before, after))
+	else
+		blocked(name, "Health unchanged")
+	end
+end
+
+local function testStateCombo()
+	local name = "State x3"
+	local p = precheck(name)
+	if not p then return end
+
+	setStatus("Testing Stun + CantHit + Ragdoll...", Color3.fromRGB(45, 65, 100))
+
+	if p.Ragdoll.Value == true then
+		skipped(name, "Target is already ragdolled")
+		return
+	end
+
+	local stunValue = n(stunBox.Text, DEFAULTS.Stun, 0, CAPS.MaxStun)
+	local cantHitValue = n(cantHitBox.Text, DEFAULTS.CantHit, 0, CAPS.MaxCantHit)
+	local duration = n(ragTimeBox.Text, DEFAULTS.RagdollTime, 0, CAPS.MaxRagdollTime)
+	local jumps = n(ragJumpBox.Text, DEFAULTS.RagdollJumps, 0, CAPS.MaxRagdollJumps)
+
+	if p.Stun.Value == stunValue then
+		stunValue = stunValue == 1 and 2 or 1
+	end
+
+	if p.CantHit.Value == cantHitValue then
+		cantHitValue = math.clamp(cantHitValue + 1, 0, CAPS.MaxCantHit)
+	end
+
+	stunBox.Text = tostring(stunValue)
+	cantHitBox.Text = tostring(cantHitValue)
+	ragTimeBox.Text = tostring(duration)
+	ragJumpBox.Text = tostring(jumps)
+
+	local beforeStun = p.Stun.Value
+	local beforeCantHit = p.CantHit.Value
+	local beforeRagdoll = p.Ragdoll.Value
+
+	fireServerFunction("ChangSTuNNNNNNN", {
+		stunValue,
+		p.Character,
+	})
+
+	fireServerFunction("ChangCanTHiTTT", {
+		cantHitValue,
+		p.Character,
+	})
+
+	fireServerFunction("Ragdoll_Character", {
+		p.Character,
+		true,
+		{
+			T = duration,
+			J = jumps,
+		},
+	})
+
+	waitUntil(getTimeout(), function()
+		return p.Stun.Value == stunValue
+			and p.CantHit.Value == cantHitValue
+			and p.Ragdoll.Value == true
+	end)
+
+	local gotStun = p.Stun.Value == stunValue
+	local gotCantHit = p.CantHit.Value == cantHitValue
+	local gotRagdoll = p.Ragdoll.Value == true
+
+	local accepted = {}
+
+	if gotStun then
+		table.insert(accepted, "Stun")
+	end
+
+	if gotCantHit then
+		table.insert(accepted, "CantHit")
+	end
+
+	if gotRagdoll then
+		table.insert(accepted, "Ragdoll")
+	end
+
+	if #accepted > 0 then
+		vuln(
+			name,
+			string.format(
+				"Accepted: %s | Stun %s->%s, CantHit %s->%s, Ragdoll %s->%s",
+				table.concat(accepted, ", "),
+				tostring(beforeStun),
+				tostring(p.Stun.Value),
+				tostring(beforeCantHit),
+				tostring(p.CantHit.Value),
+				tostring(beforeRagdoll),
+				tostring(p.Ragdoll.Value)
+			)
+		)
+
+		if gotStun then
+			fireServerFunction("ChangSTuNNNNNNN", {
+				0,
+				p.Character,
+			})
+		end
+
+		if gotCantHit then
+			fireServerFunction("ChangCanTHiTTT", {
+				0,
+				p.Character,
+			})
+		end
+
+		if gotRagdoll then
+			task.wait(math.min(duration, 0.5))
+
+			fireServerFunction("Ragdoll_Character", {
+				p.Character,
+				false,
+			})
+		end
+	else
+		blocked(name, "No Stun/CantHit/Ragdoll state changed")
+	end
+end
+
+local function testALVC()
+	local name = "ALVC"
+	local p = precheck(name)
+	if not p then return end
+
+	setStatus("Testing ALVC...", Color3.fromRGB(45, 65, 100))
+
+	local vx = n(velXBox.Text, DEFAULTS.VelX, -CAPS.MaxVelocity, CAPS.MaxVelocity)
+	local vy = n(velYBox.Text, DEFAULTS.VelY, -CAPS.MaxVelocity, CAPS.MaxVelocity)
+	local vz = n(velZBox.Text, DEFAULTS.VelZ, -CAPS.MaxVelocity, CAPS.MaxVelocity)
+
+	velXBox.Text = tostring(vx)
+	velYBox.Text = tostring(vy)
+	velZBox.Text = tostring(vz)
+
+	local vec = Vector3.new(vx, vy, vz)
+
+	if vec.Magnitude > CAPS.MaxVelocity then
+		vec = vec.Unit * CAPS.MaxVelocity
+	end
+
+	local before = p.HRP.AssemblyLinearVelocity
+
+	fireServerFunction("ALVC", {
+		p.HRP,
+		vec,
+		{
+			C = p.Character,
+		},
+	})
+
+	local changed = waitUntil(getTimeout(), function()
+		return (p.HRP.AssemblyLinearVelocity - before).Magnitude > 4
+	end)
+
+	if changed then
+		vuln(name, "Velocity changed after client request")
+	else
+		blocked(name, "Velocity unchanged")
+	end
+end
+
+--// ----------------------------------------------------
+--// Button wiring
+--// ----------------------------------------------------
+
+damageButton.MouseButton1Click:Connect(testDamage)
+stateComboButton.MouseButton1Click:Connect(testStateCombo)
+alvcButton.MouseButton1Click:Connect(testALVC)
+
+runAllButton.MouseButton1Click:Connect(function()
+	testDamage()
+	task.wait(0.15)
+
+	testStateCombo()
+	task.wait(0.15)
+
+	testALVC()
+end)
+
+clearButton.MouseButton1Click:Connect(clearResults)
+copyButton.MouseButton1Click:Connect(copyReport)
+
+print("[SecurityProbe] Compact GUI created in PlayerGui.")
