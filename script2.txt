@@ -727,10 +727,6 @@ local function doDamage(parts)
 		return
 	end
 
-	if parts.Humanoid.Health <= amount + 5 then
-		return
-	end
-
 	fireServerFunction("Main_Damger_OC_R", {
 		parts.Character,
 		{
