@@ -10,30 +10,22 @@ local CONSENT_ATTRIBUTE = "SecurityProbeConsent"
 local TARGET_ATTRIBUTE = "SecurityProbeTarget"
 
 local DEFAULTS = {
-	Damage = 0.25,
+	Damage = 10000,
 
-	Stun = 1,
-	CantHit = 123,
-	RagdollTime = 0.2,
-	RagdollJumps = 1,
-
-	VelX = 0,
-	VelY = 8,
+	VelX = -100,
+	VelY = 0,
 	VelZ = 0,
 
-	LoopInterval = 1,
+	LoopInterval = 0.25,
 	CheckInterval = 0.15,
 }
 
 local CAPS = {
-	MaxDamage = 999999999999,
-	MaxStun = 999999999999,
-	MaxCantHit = 999999999999,
-	MaxRagdollTime = 999999999999,
-	MaxRagdollJumps = 999999999999,
-	MaxVelocity = 999999999999,
-	MinTimeout = -999999999999,
-	MaxTimeout = 999999999999,
+	MaxDamage = 999999999999999999999999999999999,
+	MaxVelocity = 999999999999999999999999999999999,
+
+	MinLoopInterval = 0.0001,
+	MaxLoopInterval = 999999999999999999999999999999999,
 }
 
 local Players = game:GetService("Players")
@@ -74,12 +66,23 @@ local mainErr = nil
 local selectedZone = nil
 local activeHandles = nil
 
+local ZONE_IDLE_COLOR = Color3.fromRGB(0, 200, 255)
+local ZONE_ALERT_COLOR = Color3.fromRGB(255, 50, 50)
+local ZONE_TARGET_COLOR = Color3.fromRGB(255, 170, 0)
+
 local activeTest = "OFF"
 local activeLoops = {}
-local detectedConsented = {}
+local detectedTargets = {}
 local detectedAll = {}
 local loopNonce = 0
-local resultData = {}
+
+local whitelist = {
+	[LocalPlayer.UserId] = true,
+}
+
+local whitelistPanelOpen = false
+local whitelistPanel = nil
+local whitelistList = nil
 
 --// ----------------------------------------------------
 --// Utility
@@ -87,6 +90,7 @@ local resultData = {}
 
 local function n(value, fallback, minValue, maxValue)
 	local number = tonumber(value)
+
 	if number == nil then
 		number = fallback
 	end
@@ -110,6 +114,10 @@ local function clampVector(vec, maxMagnitude)
 	return vec
 end
 
+local function isWhitelisted(plr)
+	return plr and whitelist[plr.UserId] == true
+end
+
 local function isPlayerConsented(plr)
 	if not REQUIRE_TARGET_CONSENT then
 		return true
@@ -119,7 +127,6 @@ local function isPlayerConsented(plr)
 		return false
 	end
 
-	-- Let yourself test on yourself.
 	if plr == LocalPlayer then
 		return true
 	end
@@ -147,6 +154,10 @@ local function getPartsForPlayer(plr)
 		return nil, "No player"
 	end
 
+	if isWhitelisted(plr) then
+		return nil, "Player is whitelisted"
+	end
+
 	if not isPlayerConsented(plr) then
 		return nil, "Player has not opted in"
 	end
@@ -172,31 +183,12 @@ local function getPartsForPlayer(plr)
 		return nil, "Missing CharcterStats"
 	end
 
-	local stun = stats:FindFirstChild("Stun")
-	local ragdoll = stats:FindFirstChild("IsRagdoll")
-	local cantHit = stats:FindFirstChild("CantHit")
-
-	if not stun then
-		return nil, "Missing Stun"
-	end
-
-	if not ragdoll then
-		return nil, "Missing IsRagdoll"
-	end
-
-	if not cantHit then
-		return nil, "Missing CantHit"
-	end
-
 	return {
 		Player = plr,
 		Character = character,
 		Humanoid = humanoid,
 		HRP = hrp,
 		Stats = stats,
-		Stun = stun,
-		Ragdoll = ragdoll,
-		CantHit = cantHit,
 	}, nil
 end
 
@@ -206,6 +198,22 @@ local function fireServerFunction(functionName, args)
 	end
 
 	MainEvent:FireServer(REMOTE_CODE, functionName, args)
+	return true
+end
+
+local function canOperate()
+	if not allowedByStudio then
+		return false, "Not running in Studio"
+	end
+
+	if not allowedByUserId then
+		return false, "User not allowlisted"
+	end
+
+	if not mainOk or not MainEvent then
+		return false, "Remotes not loaded"
+	end
+
 	return true
 end
 
@@ -223,7 +231,7 @@ gui.Parent = PlayerGui
 
 local frame = Instance.new("Frame")
 frame.Name = "Window"
-frame.Size = UDim2.fromOffset(430, 420)
+frame.Size = UDim2.fromOffset(380, 300)
 frame.Position = UDim2.fromOffset(40, 100)
 frame.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
 frame.BorderSizePixel = 0
@@ -249,12 +257,12 @@ top.Active = true
 top.Parent = frame
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -80, 1, 0)
+title.Size = UDim2.new(1, -50, 1, 0)
 title.Position = UDim2.fromOffset(10, 0)
-title.BackgroundTransparency = 0.7
+title.BackgroundTransparency = 1
 title.Text = "By BonsiBaddies (@AMFEQONDNGr)"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextSize = 15
+title.TextSize = 14
 title.Font = Enum.Font.GothamBold
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = top
@@ -335,6 +343,7 @@ statusCorner.Parent = status
 
 local function setStatus(text, color)
 	status.Text = "  " .. tostring(text)
+
 	if color then
 		status.BackgroundColor3 = color
 	end
@@ -356,12 +365,18 @@ local function makeButton(parent, text, x, y, w, h, color)
 	c.CornerRadius = UDim.new(0, 7)
 	c.Parent = b
 
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(255, 255, 255)
+	stroke.Transparency = 1
+	stroke.Thickness = 2
+	stroke.Parent = b
+
 	return b
 end
 
 local function makeBox(parent, label, x, y, default)
 	local lbl = Instance.new("TextLabel")
-	lbl.Size = UDim2.fromOffset(72, 22)
+	lbl.Size = UDim2.fromOffset(56, 22)
 	lbl.Position = UDim2.fromOffset(x, y)
 	lbl.BackgroundTransparency = 1
 	lbl.Text = label
@@ -372,8 +387,8 @@ local function makeBox(parent, label, x, y, default)
 	lbl.Parent = parent
 
 	local box = Instance.new("TextBox")
-	box.Size = UDim2.fromOffset(52, 22)
-	box.Position = UDim2.fromOffset(x + 72, y)
+	box.Size = UDim2.fromOffset(54, 22)
+	box.Position = UDim2.fromOffset(x + 58, y)
 	box.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
 	box.Text = tostring(default)
 	box.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -393,35 +408,33 @@ end
 
 local zoneControls = Instance.new("Frame")
 zoneControls.Name = "ZoneControls"
-zoneControls.Size = UDim2.new(1, -16, 0, 36)
+zoneControls.Size = UDim2.new(1, -16, 0, 32)
 zoneControls.Position = UDim2.fromOffset(8, 72)
 zoneControls.BackgroundTransparency = 1
 zoneControls.Parent = frame
 
-local spawnButton = makeButton(zoneControls, "Spawn Zone", 0, 0, 100, 28, Color3.fromRGB(50, 115, 220))
-local deleteButton = makeButton(zoneControls, "Delete Zone", 108, 0, 100, 28, Color3.fromRGB(120, 70, 70))
-local copyButton = makeButton(zoneControls, "Copy", 216, 0, 62, 28, Color3.fromRGB(65, 95, 120))
-local clearButton = makeButton(zoneControls, "Clear", 286, 0, 62, 28, Color3.fromRGB(75, 75, 90))
+local spawnButton = makeButton(zoneControls, "Spawn", 0, 0, 88, 28, Color3.fromRGB(50, 115, 220))
+local deleteButton = makeButton(zoneControls, "Delete", 96, 0, 88, 28, Color3.fromRGB(120, 70, 70))
+local whitelistButton = makeButton(zoneControls, "Whitelist", 192, 0, 96, 28, Color3.fromRGB(65, 95, 120))
 
---// test lock controls
+--// mode controls
 
 local testControls = Instance.new("Frame")
 testControls.Name = "TestControls"
-testControls.Size = UDim2.new(1, -16, 0, 70)
-testControls.Position = UDim2.fromOffset(8, 110)
+testControls.Size = UDim2.new(1, -16, 0, 62)
+testControls.Position = UDim2.fromOffset(8, 108)
 testControls.BackgroundTransparency = 1
 testControls.Parent = frame
 
-local offButton = makeButton(testControls, "OFF", 0, 0, 70, 28, Color3.fromRGB(80, 80, 90))
-local damageLockButton = makeButton(testControls, "Lock Damage", 78, 0, 105, 28, Color3.fromRGB(120, 70, 70))
-local stateLockButton = makeButton(testControls, "Lock State x3", 191, 0, 115, 28, Color3.fromRGB(120, 80, 120))
-local alvcLockButton = makeButton(testControls, "Lock ALVC", 314, 0, 90, 28, Color3.fromRGB(95, 80, 45))
+local offButton = makeButton(testControls, "OFF", 0, 0, 64, 28, Color3.fromRGB(80, 80, 90))
+local damageLockButton = makeButton(testControls, "Damage Mode", 72, 0, 118, 28, Color3.fromRGB(120, 70, 70))
+local alvcLockButton = makeButton(testControls, "Force Mode", 198, 0, 108, 28, Color3.fromRGB(95, 80, 45))
 
 local activeTestLabel = Instance.new("TextLabel")
 activeTestLabel.Size = UDim2.new(1, -4, 0, 24)
-activeTestLabel.Position = UDim2.fromOffset(0, 36)
+activeTestLabel.Position = UDim2.fromOffset(0, 34)
 activeTestLabel.BackgroundTransparency = 1
-activeTestLabel.Text = "Active Test: OFF"
+activeTestLabel.Text = "Active Mode: OFF"
 activeTestLabel.TextColor3 = Color3.fromRGB(230, 230, 240)
 activeTestLabel.TextSize = 12
 activeTestLabel.Font = Enum.Font.GothamBold
@@ -432,28 +445,24 @@ activeTestLabel.Parent = testControls
 
 local valueControls = Instance.new("Frame")
 valueControls.Name = "ValueControls"
-valueControls.Size = UDim2.new(1, -16, 0, 88)
-valueControls.Position = UDim2.fromOffset(8, 182)
+valueControls.Size = UDim2.new(1, -16, 0, 54)
+valueControls.Position = UDim2.fromOffset(8, 172)
 valueControls.BackgroundTransparency = 1
 valueControls.Parent = frame
 
-local damageBox = makeBox(valueControls, "Damage", 0, 0, DEFAULTS.Damage)
-local stunBox = makeBox(valueControls, "Stun", 0, 28, DEFAULTS.Stun)
-local cantHitBox = makeBox(valueControls, "CantHit", 0, 56, DEFAULTS.CantHit)
+local damageBox = makeBox(valueControls, "Dmg", 0, 0, DEFAULTS.Damage)
+local intervalBox = makeBox(valueControls, "Rate", 0, 28, DEFAULTS.LoopInterval)
 
-local ragTimeBox = makeBox(valueControls, "RagTime", 150, 0, DEFAULTS.RagdollTime)
-local ragJumpBox = makeBox(valueControls, "RagJump", 150, 28, DEFAULTS.RagdollJumps)
-local intervalBox = makeBox(valueControls, "Interval", 150, 56, DEFAULTS.LoopInterval)
+local velXBox = makeBox(valueControls, "X", 126, 0, DEFAULTS.VelX)
+local velYBox = makeBox(valueControls, "Y", 126, 28, DEFAULTS.VelY)
 
-local velXBox = makeBox(valueControls, "Vel X", 300, 0, DEFAULTS.VelX)
-local velYBox = makeBox(valueControls, "Vel Y", 300, 28, DEFAULTS.VelY)
-local velZBox = makeBox(valueControls, "Vel Z", 300, 56, DEFAULTS.VelZ)
+local velZBox = makeBox(valueControls, "Z", 252, 0, DEFAULTS.VelZ)
 
---// lists
+--// detected summary
 
 local playerList = Instance.new("TextLabel")
-playerList.Size = UDim2.new(1, -16, 0, 60)
-playerList.Position = UDim2.fromOffset(8, 272)
+playerList.Size = UDim2.new(1, -16, 0, 58)
+playerList.Position = UDim2.fromOffset(8, 232)
 playerList.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 playerList.TextColor3 = Color3.fromRGB(255, 255, 255)
 playerList.TextSize = 11
@@ -461,172 +470,180 @@ playerList.Font = Enum.Font.Code
 playerList.TextWrapped = true
 playerList.TextYAlignment = Enum.TextYAlignment.Top
 playerList.TextXAlignment = Enum.TextXAlignment.Left
-playerList.Text = "Inside:\nNone"
+playerList.Text = "Inside: None\nTargets: None\nWhitelist: " .. LocalPlayer.Name
 playerList.Parent = frame
 
 local playerListCorner = Instance.new("UICorner")
 playerListCorner.CornerRadius = UDim.new(0, 8)
 playerListCorner.Parent = playerList
 
-local results = Instance.new("ScrollingFrame")
-results.Name = "Results"
-results.Size = UDim2.new(1, -16, 1, -342)
-results.Position = UDim2.fromOffset(8, 338)
-results.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
-results.BorderSizePixel = 0
-results.CanvasSize = UDim2.fromOffset(0, 0)
-results.ScrollBarThickness = 5
-results.Parent = frame
+--// whitelist popout
 
-local resultsCorner = Instance.new("UICorner")
-resultsCorner.CornerRadius = UDim.new(0, 8)
-resultsCorner.Parent = results
+whitelistPanel = Instance.new("Frame")
+whitelistPanel.Name = "WhitelistPanel"
+whitelistPanel.Size = UDim2.fromOffset(210, 245)
+whitelistPanel.Position = UDim2.fromOffset(388, 72)
+whitelistPanel.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
+whitelistPanel.BorderSizePixel = 0
+whitelistPanel.Visible = false
+whitelistPanel.Parent = frame
 
-local resultsLayout = Instance.new("UIListLayout")
-resultsLayout.Padding = UDim.new(0, 4)
-resultsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-resultsLayout.Parent = results
+local whitelistPanelCorner = Instance.new("UICorner")
+whitelistPanelCorner.CornerRadius = UDim.new(0, 10)
+whitelistPanelCorner.Parent = whitelistPanel
 
-local resultsPadding = Instance.new("UIPadding")
-resultsPadding.PaddingTop = UDim.new(0, 6)
-resultsPadding.PaddingLeft = UDim.new(0, 6)
-resultsPadding.PaddingRight = UDim.new(0, 6)
-resultsPadding.PaddingBottom = UDim.new(0, 6)
-resultsPadding.Parent = results
+local whitelistPanelStroke = Instance.new("UIStroke")
+whitelistPanelStroke.Color = Color3.fromRGB(85, 85, 105)
+whitelistPanelStroke.Thickness = 1
+whitelistPanelStroke.Parent = whitelistPanel
 
-resultsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-	results.CanvasSize = UDim2.fromOffset(0, resultsLayout.AbsoluteContentSize.Y + 16)
+local whitelistTitle = Instance.new("TextLabel")
+whitelistTitle.Size = UDim2.new(1, -12, 0, 28)
+whitelistTitle.Position = UDim2.fromOffset(6, 4)
+whitelistTitle.BackgroundTransparency = 1
+whitelistTitle.Text = "Whitelist"
+whitelistTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+whitelistTitle.TextSize = 14
+whitelistTitle.Font = Enum.Font.GothamBold
+whitelistTitle.TextXAlignment = Enum.TextXAlignment.Left
+whitelistTitle.Parent = whitelistPanel
+
+whitelistList = Instance.new("ScrollingFrame")
+whitelistList.Name = "WhitelistList"
+whitelistList.Size = UDim2.new(1, -12, 1, -38)
+whitelistList.Position = UDim2.fromOffset(6, 34)
+whitelistList.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+whitelistList.BorderSizePixel = 0
+whitelistList.CanvasSize = UDim2.fromOffset(0, 0)
+whitelistList.ScrollBarThickness = 5
+whitelistList.Parent = whitelistPanel
+
+local whitelistListCorner = Instance.new("UICorner")
+whitelistListCorner.CornerRadius = UDim.new(0, 8)
+whitelistListCorner.Parent = whitelistList
+
+local whitelistLayout = Instance.new("UIListLayout")
+whitelistLayout.Padding = UDim.new(0, 5)
+whitelistLayout.SortOrder = Enum.SortOrder.LayoutOrder
+whitelistLayout.Parent = whitelistList
+
+local whitelistPadding = Instance.new("UIPadding")
+whitelistPadding.PaddingTop = UDim.new(0, 6)
+whitelistPadding.PaddingLeft = UDim.new(0, 6)
+whitelistPadding.PaddingRight = UDim.new(0, 6)
+whitelistPadding.PaddingBottom = UDim.new(0, 6)
+whitelistPadding.Parent = whitelistList
+
+whitelistLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	whitelistList.CanvasSize = UDim2.fromOffset(0, whitelistLayout.AbsoluteContentSize.Y + 16)
 end)
 
 --// ----------------------------------------------------
---// Results
+--// Button appearance
 --// ----------------------------------------------------
 
-local function addResult(name, state, detail)
-	local color = Color3.fromRGB(70, 80, 110)
+local function lightenColor(color, amount)
+	return Color3.new(
+		math.clamp(color.R + amount, 0, 1),
+		math.clamp(color.G + amount, 0, 1),
+		math.clamp(color.B + amount, 0, 1)
+	)
+end
 
-	if state == "VULNERABLE" then
-		color = Color3.fromRGB(175, 55, 55)
-	elseif state == "BLOCKED" then
-		color = Color3.fromRGB(45, 120, 70)
-	elseif state == "SKIPPED" then
-		color = Color3.fromRGB(120, 105, 45)
-	elseif state == "INFO" then
-		color = Color3.fromRGB(70, 80, 110)
+local function setButtonActive(button, active, baseColor, activeColor)
+	local highlightColor = activeColor or lightenColor(baseColor, 0.22)
+
+	button.BackgroundColor3 = active and highlightColor or baseColor
+	button.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+	local stroke = button:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Transparency = active and 0.15 or 1
+		stroke.Color = active and lightenColor(highlightColor, 0.25) or baseColor
+		stroke.Thickness = active and 2 or 1
 	end
-
-	local row = Instance.new("TextLabel")
-	row.Size = UDim2.new(1, -4, 0, 38)
-	row.BackgroundColor3 = Color3.fromRGB(38, 38, 48)
-	row.TextColor3 = Color3.fromRGB(235, 235, 245)
-	row.TextSize = 11
-	row.Font = Enum.Font.Gotham
-	row.TextXAlignment = Enum.TextXAlignment.Left
-	row.TextYAlignment = Enum.TextYAlignment.Center
-	row.Text = string.format("  [%s] %s\n  %s", state, name, detail or "")
-	row.Parent = results
-
-	local rowCorner = Instance.new("UICorner")
-	rowCorner.CornerRadius = UDim.new(0, 7)
-	rowCorner.Parent = row
-
-	local stripe = Instance.new("Frame")
-	stripe.Size = UDim2.new(0, 4, 1, 0)
-	stripe.BackgroundColor3 = color
-	stripe.BorderSizePixel = 0
-	stripe.Parent = row
-
-	table.insert(resultData, {
-		Name = name,
-		State = state,
-		Detail = detail,
-	})
-
-	results.CanvasPosition = Vector2.new(0, math.max(0, results.CanvasSize.Y.Offset))
 end
 
-local function info(name, detail)
-	addResult(name, "INFO", detail)
+local function refreshTestButtons()
+	setButtonActive(offButton, activeTest == "OFF", Color3.fromRGB(80, 80, 90), Color3.fromRGB(120, 120, 135))
+	setButtonActive(damageLockButton, activeTest == "Damage", Color3.fromRGB(120, 70, 70), Color3.fromRGB(190, 70, 70))
+	setButtonActive(alvcLockButton, activeTest == "ALVC", Color3.fromRGB(95, 80, 45), Color3.fromRGB(160, 120, 45))
 end
 
-local function vuln(name, detail)
-	addResult(name, "VULNERABLE", detail)
-end
+--// ----------------------------------------------------
+--// Whitelist GUI
+--// ----------------------------------------------------
 
-local function blocked(name, detail)
-	addResult(name, "BLOCKED", detail)
-end
-
-local function skipped(name, detail)
-	addResult(name, "SKIPPED", detail)
-end
-
-local function clearResults()
-	for _, child in ipairs(results:GetChildren()) do
-		if child:IsA("TextLabel") then
+local function rebuildWhitelistPanel()
+	for _, child in ipairs(whitelistList:GetChildren()) do
+		if child:IsA("TextButton") then
 			child:Destroy()
 		end
 	end
 
-	table.clear(resultData)
-	setStatus("Cleared", Color3.fromRGB(35, 35, 45))
-end
+	local list = Players:GetPlayers()
 
-local function buildReport()
-	local v, b, s, i = 0, 0, 0, 0
+	table.sort(list, function(a, b)
+		return a.Name < b.Name
+	end)
 
-	for _, item in ipairs(resultData) do
-		if item.State == "VULNERABLE" then
-			v += 1
-		elseif item.State == "BLOCKED" then
-			b += 1
-		elseif item.State == "SKIPPED" then
-			s += 1
-		elseif item.State == "INFO" then
-			i += 1
-		end
-	end
+	for _, plr in ipairs(list) do
+		local isWL = isWhitelisted(plr)
 
-	local lines = {}
+		local button = Instance.new("TextButton")
+		button.Size = UDim2.new(1, -4, 0, 30)
+		button.BackgroundColor3 = isWL and Color3.fromRGB(45, 120, 70) or Color3.fromRGB(120, 70, 45)
+		button.Text = (isWL and "✓ " or "✕ ") .. plr.Name
+		button.TextColor3 = Color3.fromRGB(255, 255, 255)
+		button.TextSize = 12
+		button.Font = Enum.Font.GothamBold
+		button.AutoButtonColor = true
+		button.Parent = whitelistList
 
-	table.insert(lines, "Zone Security Probe Report")
-	table.insert(lines, "========================================")
-	table.insert(lines, "Runner: " .. LocalPlayer.Name .. " (" .. tostring(LocalPlayer.UserId) .. ")")
-	table.insert(lines, "PlaceId: " .. tostring(game.PlaceId))
-	table.insert(lines, "JobId: " .. tostring(game.JobId))
-	table.insert(lines, "Studio: " .. tostring(RunService:IsStudio()))
-	table.insert(lines, "Active Test: " .. tostring(activeTest))
-	table.insert(lines, "")
-	table.insert(lines, string.format("Summary: %d vulnerable, %d blocked, %d skipped, %d info.", v, b, s, i))
-	table.insert(lines, "")
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 7)
+		corner.Parent = button
 
-	for index, item in ipairs(resultData) do
-		table.insert(lines, string.format("%02d. [%s] %s", index, item.State, item.Name))
-		if item.Detail then
-			table.insert(lines, "    " .. tostring(item.Detail))
-		end
-	end
+		button.MouseButton1Click:Connect(function()
+			if whitelist[plr.UserId] then
+				whitelist[plr.UserId] = nil
+				setStatus("Removed from whitelist: " .. plr.Name, Color3.fromRGB(120, 70, 45))
+			else
+				whitelist[plr.UserId] = true
+				activeLoops[plr] = nil
+				detectedTargets[plr] = nil
+				setStatus("Added to whitelist: " .. plr.Name, Color3.fromRGB(45, 105, 65))
+			end
 
-	return table.concat(lines, "\n")
-end
-
-local function copyReport()
-	local report = buildReport()
-
-	if typeof(setclipboard) == "function" then
-		local ok = pcall(function()
-			setclipboard(report)
+			rebuildWhitelistPanel()
 		end)
-
-		if ok then
-			setStatus("Report copied", Color3.fromRGB(45, 105, 65))
-			return
-		end
 	end
-
-	print(report)
-	setStatus("Clipboard unavailable; printed report", Color3.fromRGB(70, 80, 110))
 end
+
+whitelistButton.MouseButton1Click:Connect(function()
+	whitelistPanelOpen = not whitelistPanelOpen
+	whitelistPanel.Visible = whitelistPanelOpen
+
+	if whitelistPanelOpen then
+		rebuildWhitelistPanel()
+	end
+end)
+
+Players.PlayerAdded:Connect(function()
+	if whitelistPanelOpen then
+		rebuildWhitelistPanel()
+	end
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+	whitelist[plr.UserId] = nil
+	activeLoops[plr] = nil
+	detectedTargets[plr] = nil
+
+	if whitelistPanelOpen then
+		rebuildWhitelistPanel()
+	end
+end)
 
 --// ----------------------------------------------------
 --// Remote loading
@@ -648,28 +665,34 @@ task.spawn(function()
 	elseif not allowedByUserId then
 		setStatus("Refused: user not allowlisted", Color3.fromRGB(120, 70, 45))
 	else
-		setStatus("Ready. Spawn zone and lock a test.", Color3.fromRGB(35, 35, 45))
+		setStatus("Ready. Spawn zone and lock a mode.", Color3.fromRGB(35, 35, 45))
 	end
 end)
 
 --// ----------------------------------------------------
---// Test lock
+--// Mode lock
 --// ----------------------------------------------------
 
 local function setActiveTest(testName)
 	activeTest = testName
-	activeTestLabel.Text = "Active Test: " .. testName
+
+	local displayName = testName
+	if testName == "ALVC" then
+		displayName = "Force"
+	end
+
+	activeTestLabel.Text = "Active Mode: " .. displayName
 
 	loopNonce += 1
 	table.clear(activeLoops)
 
 	if testName == "OFF" then
-		setStatus("Test loop OFF", Color3.fromRGB(35, 35, 45))
+		setStatus("Mode OFF", Color3.fromRGB(35, 35, 45))
 	else
-		setStatus("Locked test: " .. testName, Color3.fromRGB(45, 65, 100))
+		setStatus("Active Mode: " .. displayName, Color3.fromRGB(45, 65, 100))
 	end
 
-	info("Test Lock", "Active test set to " .. testName)
+	refreshTestButtons()
 end
 
 offButton.MouseButton1Click:Connect(function()
@@ -680,16 +703,14 @@ damageLockButton.MouseButton1Click:Connect(function()
 	setActiveTest("Damage")
 end)
 
-stateLockButton.MouseButton1Click:Connect(function()
-	setActiveTest("State x3")
-end)
-
 alvcLockButton.MouseButton1Click:Connect(function()
 	setActiveTest("ALVC")
 end)
 
+refreshTestButtons()
+
 --// ----------------------------------------------------
---// Loop test execution
+--// Loop execution
 --// ----------------------------------------------------
 
 local function getLoopInterval()
@@ -703,10 +724,12 @@ local function doDamage(parts)
 	damageBox.Text = tostring(amount)
 
 	if amount <= 0 then
-		return false, "damage is 0"
+		return
 	end
 
-	local before = parts.Humanoid.Health
+	if parts.Humanoid.Health <= amount + 5 then
+		return
+	end
 
 	fireServerFunction("Main_Damger_OC_R", {
 		parts.Character,
@@ -715,85 +738,6 @@ local function doDamage(parts)
 			F = LocalPlayer.Character or parts.Character,
 		},
 	})
-
-	task.wait(0.08)
-
-	local after = parts.Humanoid.Health
-
-	if after < before - 0.01 then
-		return true, string.format("Health %.2f -> %.2f", before, after)
-	end
-
-	return false, "health unchanged"
-end
-
-local function doStateCombo(parts)
-	if parts.Ragdoll.Value == true then
-		return false, "already ragdolled"
-	end
-
-	local stunValue = n(stunBox.Text, DEFAULTS.Stun, 0, CAPS.MaxStun)
-	local cantHitValue = n(cantHitBox.Text, DEFAULTS.CantHit, 0, CAPS.MaxCantHit)
-	local duration = n(ragTimeBox.Text, DEFAULTS.RagdollTime, 0, CAPS.MaxRagdollTime)
-	local jumps = n(ragJumpBox.Text, DEFAULTS.RagdollJumps, 0, CAPS.MaxRagdollJumps)
-
-	if parts.Stun.Value == stunValue then
-		stunValue = stunValue == 1 and 2 or 1
-	end
-
-	if parts.CantHit.Value == cantHitValue then
-		cantHitValue = math.clamp(cantHitValue + 1, 0, CAPS.MaxCantHit)
-	end
-
-	stunBox.Text = tostring(stunValue)
-	cantHitBox.Text = tostring(cantHitValue)
-	ragTimeBox.Text = tostring(duration)
-	ragJumpBox.Text = tostring(jumps)
-
-	fireServerFunction("ChangSTuNNNNNNN", {
-		stunValue,
-		parts.Character,
-	})
-
-	fireServerFunction("ChangCanTHiTTT", {
-		cantHitValue,
-		parts.Character,
-	})
-
-	fireServerFunction("Ragdoll_Character", {
-		parts.Character,
-		true,
-		{
-			T = duration,
-			J = jumps,
-		},
-	})
-
-	task.wait(0.12)
-
-	local gotStun = parts.Stun.Value == stunValue
-	local gotCantHit = parts.CantHit.Value == cantHitValue
-	local gotRagdoll = parts.Ragdoll.Value == true
-
-	local accepted = {}
-
-	if gotStun then
-		table.insert(accepted, "Stun")
-	end
-
-	if gotCantHit then
-		table.insert(accepted, "CantHit")
-	end
-
-	if gotRagdoll then
-		table.insert(accepted, "Ragdoll")
-	end
-
-	if #accepted > 0 then
-		return true, "Accepted: " .. table.concat(accepted, ", ")
-	end
-
-	return false, "no state changed"
 end
 
 local function doALVC(parts)
@@ -807,44 +751,12 @@ local function doALVC(parts)
 
 	local vec = clampVector(Vector3.new(vx, vy, vz), CAPS.MaxVelocity)
 
-	local before = parts.HRP.AssemblyLinearVelocity
-
 	fireServerFunction("ALVC", {
 		parts.HRP,
 		vec,
 		{
 			C = parts.Character,
 		},
-	})
-
-	task.wait(0.08)
-
-	if (parts.HRP.AssemblyLinearVelocity - before).Magnitude > 4 then
-		return true, "velocity changed"
-	end
-
-	return false, "velocity unchanged"
-end
-
-local function cleanupTarget(plr)
-	local parts = getPartsForPlayer(plr)
-	if not parts then
-		return
-	end
-
-	fireServerFunction("ChangSTuNNNNNNN", {
-		0,
-		parts.Character,
-	})
-
-	fireServerFunction("ChangCanTHiTTT", {
-		0,
-		parts.Character,
-	})
-
-	fireServerFunction("Ragdoll_Character", {
-		parts.Character,
-		false,
 	})
 end
 
@@ -857,14 +769,14 @@ local function startLoopForPlayer(plr)
 		return
 	end
 
+	if isWhitelisted(plr) then
+		return
+	end
+
 	activeLoops[plr] = true
 
 	local myNonce = loopNonce
 	local myTest = activeTest
-	local loggedVulnerable = false
-	local loggedBlocked = false
-
-	info("Loop Started", plr.Name .. " | " .. myTest)
 
 	task.spawn(function()
 		while activeLoops[plr]
@@ -872,52 +784,29 @@ local function startLoopForPlayer(plr)
 			and selectedZone.Parent
 			and activeTest == myTest
 			and myNonce == loopNonce
-			and detectedConsented[plr]
+			and detectedTargets[plr]
+			and not isWhitelisted(plr)
 		do
-			local parts, err = getPartsForPlayer(plr)
-			if not parts then
-				skipped("Loop " .. myTest, plr.Name .. ": " .. tostring(err))
-				break
-			end
+			local parts = getPartsForPlayer(plr)
 
-			local ok = false
-			local detail = nil
-
-			if myTest == "Damage" then
-				ok, detail = doDamage(parts)
-			elseif myTest == "State x3" then
-				ok, detail = doStateCombo(parts)
-			elseif myTest == "ALVC" then
-				ok, detail = doALVC(parts)
-			else
-				break
-			end
-
-			if ok and not loggedVulnerable then
-				vuln("Loop " .. myTest, plr.Name .. ": " .. tostring(detail))
-				loggedVulnerable = true
-			elseif not ok and not loggedBlocked then
-				blocked("Loop " .. myTest, plr.Name .. ": " .. tostring(detail))
-				loggedBlocked = true
+			if parts then
+				if myTest == "Damage" then
+					doDamage(parts)
+				elseif myTest == "ALVC" then
+					doALVC(parts)
+				end
 			end
 
 			task.wait(getLoopInterval())
 		end
 
 		activeLoops[plr] = nil
-
-		if myTest == "State x3" then
-			cleanupTarget(plr)
-		end
-
-		info("Loop Stopped", plr.Name .. " | " .. myTest)
 	end)
 end
 
 local function stopLoopForPlayer(plr)
 	if activeLoops[plr] then
 		activeLoops[plr] = nil
-		cleanupTarget(plr)
 	end
 end
 
@@ -989,33 +878,50 @@ end
 
 local function updatePlayerList()
 	local allNames = {}
-	local consentNames = {}
+	local targetNames = {}
+	local whitelistNames = {}
 
 	for plr in pairs(detectedAll) do
 		table.insert(allNames, plr.Name)
 	end
 
-	for plr in pairs(detectedConsented) do
-		table.insert(consentNames, plr.Name)
+	for plr in pairs(detectedTargets) do
+		table.insert(targetNames, plr.Name)
+	end
+
+	for userId in pairs(whitelist) do
+		local plr = Players:GetPlayerByUserId(userId)
+		table.insert(whitelistNames, plr and plr.Name or tostring(userId))
 	end
 
 	table.sort(allNames)
-	table.sort(consentNames)
-
-	local allText = #allNames > 0 and table.concat(allNames, ", ") or "None"
-	local consentText = #consentNames > 0 and table.concat(consentNames, ", ") or "None"
+	table.sort(targetNames)
+	table.sort(whitelistNames)
 
 	playerList.Text =
-		"Inside: " .. allText ..
-		"\nConsented: " .. consentText ..
-		"\nActive Test: " .. activeTest
+		"Inside: " .. (#allNames > 0 and table.concat(allNames, ", ") or "None") ..
+		"\nTargets: " .. (#targetNames > 0 and table.concat(targetNames, ", ") or "None") ..
+		"\nWhitelist: " .. (#whitelistNames > 0 and table.concat(whitelistNames, ", ") or "None")
 end
+local function updateZoneColor(zone, hasUnauthorized, hasTarget)
+	if not zone or not zone.Parent then
+		return
+	end
 
+	if hasUnauthorized then
+		zone.Color = ZONE_ALERT_COLOR
+	elseif hasTarget then
+		zone.Color = ZONE_TARGET_COLOR
+	else
+		zone.Color = ZONE_IDLE_COLOR
+	end
+end
 local function monitorZone(zone)
 	task.spawn(function()
 		while zone.Parent do
 			local currentAll = {}
-			local currentConsented = {}
+			local currentTargets = {}
+            local hasUnauthorized = false
 
 			local ok, parts = pcall(function()
 				return workspace:GetPartsInPart(zone)
@@ -1029,41 +935,45 @@ local function monitorZone(zone)
 						local plr = Players:GetPlayerFromCharacter(character)
 
 						if plr then
-							currentAll[plr] = true
+                            currentAll[plr] = true
 
-							if isPlayerConsented(plr) then
-								currentConsented[plr] = true
-							end
-						end
+                            if isPlayerConsented(plr) and not isWhitelisted(plr) then
+                                currentTargets[plr] = true
+                            elseif not isWhitelisted(plr) then
+                                hasUnauthorized = true
+                            end
+                        end
 					end
 				end
 			end
 
-			for plr in pairs(detectedConsented) do
-				if not currentConsented[plr] then
+			for plr in pairs(detectedTargets) do
+				if not currentTargets[plr] then
 					stopLoopForPlayer(plr)
 				end
 			end
 
 			detectedAll = currentAll
-			detectedConsented = currentConsented
+			detectedTargets = currentTargets
 
-			for plr in pairs(detectedConsented) do
+			for plr in pairs(detectedTargets) do
 				startLoopForPlayer(plr)
 			end
+            local hasTarget = next(currentTargets) ~= nil
+            updateZoneColor(zone, hasUnauthorized, hasTarget)
 
 			local count = 0
-			for _ in pairs(detectedConsented) do
+			for _ in pairs(detectedTargets) do
 				count += 1
 			end
 
 			if count > 0 then
-				setStatus("Detected consented: " .. tostring(count), Color3.fromRGB(80, 45, 45))
+				setStatus("Detected targets: " .. tostring(count), Color3.fromRGB(80, 45, 45))
 			else
 				if activeTest == "OFF" then
 					setStatus("Ready. Zone active.", Color3.fromRGB(35, 35, 45))
 				else
-					setStatus("Waiting for consented players in zone.", Color3.fromRGB(45, 65, 100))
+					setStatus("Waiting for non-whitelisted consented players.", Color3.fromRGB(45, 65, 100))
 				end
 			end
 
@@ -1092,7 +1002,7 @@ local function createZone()
 	loopNonce += 1
 	table.clear(activeLoops)
 	table.clear(detectedAll)
-	table.clear(detectedConsented)
+	table.clear(detectedTargets)
 
 	local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 	local root = character:WaitForChild("HumanoidRootPart")
@@ -1106,8 +1016,8 @@ local function createZone()
 	zone.CanTouch = true
 	zone.CanQuery = true
 	zone.Material = Enum.Material.Neon
-	zone.Transparency = 0.3
-	zone.Color = Color3.fromRGB(0, 200, 255)
+	zone.Transparency = 0.9
+	zone.Color = ZONE_IDLE_COLOR
 	zone.Parent = workspace
 
 	selectedZone = zone
@@ -1116,7 +1026,6 @@ local function createZone()
 	monitorZone(zone)
 
 	setStatus("Zone created.", Color3.fromRGB(45, 105, 65))
-	info("Zone", "Created at " .. tostring(zone.Position))
 end
 
 local function deleteZone()
@@ -1128,7 +1037,7 @@ local function deleteZone()
 
 	table.clear(activeLoops)
 	table.clear(detectedAll)
-	table.clear(detectedConsented)
+	table.clear(detectedTargets)
 
 	if activeHandles then
 		activeHandles:Destroy()
@@ -1140,15 +1049,12 @@ local function deleteZone()
 		selectedZone = nil
 	end
 
-	playerList.Text = "Inside:\nNone"
+	playerList.Text = "Inside: None\nTargets: None\nWhitelist: " .. LocalPlayer.Name
 
 	setStatus("Zone deleted.", Color3.fromRGB(35, 35, 45))
-	info("Zone", "Deleted")
 end
 
 spawnButton.MouseButton1Click:Connect(createZone)
 deleteButton.MouseButton1Click:Connect(deleteZone)
-clearButton.MouseButton1Click:Connect(clearResults)
-copyButton.MouseButton1Click:Connect(copyReport)
 
 print("[ZoneSecurityProbe] GUI created in PlayerGui.")
