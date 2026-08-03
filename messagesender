@@ -1,0 +1,320 @@
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+-- Services
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+-- Create ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "RemoteSenderGUI"
+ScreenGui.Parent = PlayerGui
+ScreenGui.ResetOnSpawn = false
+
+-- Main Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 340, 0, 170)
+MainFrame.Position = UDim2.new(0.5, -170, 0.5, -85)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+-- Corner rounding
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 12)
+Corner.Parent = MainFrame
+
+-- Subtle border
+local Border = Instance.new("UIStroke")
+Border.Color = Color3.fromRGB(255, 255, 255)
+Border.Transparency = 0.9
+Border.Thickness = 1
+Border.Parent = MainFrame
+
+-- Header/Title Bar
+local HeaderFrame = Instance.new("Frame")
+HeaderFrame.Size = UDim2.new(1, 0, 0, 35)
+HeaderFrame.Position = UDim2.new(0, 0, 0, 0)
+HeaderFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+HeaderFrame.BorderSizePixel = 0
+HeaderFrame.Parent = MainFrame
+
+local HeaderCorner = Instance.new("UICorner")
+HeaderCorner.CornerRadius = UDim.new(0, 12)
+HeaderCorner.Parent = HeaderFrame
+
+-- Title Label
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+TitleLabel.Position = UDim2.new(0.05, 0, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "By BonsiBaddies (@AMFEQONDNGR)"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 15
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.Parent = HeaderFrame
+
+-- Collapse/Expand Button
+local CollapseButton = Instance.new("TextButton")
+CollapseButton.Size = UDim2.new(0, 28, 0, 28)
+CollapseButton.Position = UDim2.new(1, -65, 0, 3.5)
+CollapseButton.BackgroundTransparency = 1
+CollapseButton.Text = "▲"
+CollapseButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+CollapseButton.TextSize = 14
+CollapseButton.Font = Enum.Font.GothamBold
+CollapseButton.Parent = HeaderFrame
+
+-- Close Button
+local CloseButton = Instance.new("TextButton")
+CloseButton.Size = UDim2.new(0, 28, 0, 28)
+CloseButton.Position = UDim2.new(1, -33, 0, 3.5)
+CloseButton.BackgroundTransparency = 1
+CloseButton.Text = "✕"
+CloseButton.TextColor3 = Color3.fromRGB(255, 100, 100)
+CloseButton.TextSize = 14
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.Parent = HeaderFrame
+
+-- Content Frame
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Size = UDim2.new(1, -20, 1, -45)
+ContentFrame.Position = UDim2.new(0, 10, 0, 38)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Parent = MainFrame
+
+-- Message Input
+local MessageBox = Instance.new("TextBox")
+MessageBox.Size = UDim2.new(1, 0, 0, 32)
+MessageBox.Position = UDim2.new(0, 0, 0, 0)
+MessageBox.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+MessageBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+MessageBox.PlaceholderText = "Enter message..."
+MessageBox.PlaceholderColor3 = Color3.fromRGB(130, 130, 150)
+MessageBox.Font = Enum.Font.Gotham
+MessageBox.TextSize = 14
+MessageBox.ClearTextOnFocus = false
+MessageBox.Parent = ContentFrame
+
+local MessageCorner = Instance.new("UICorner")
+MessageCorner.CornerRadius = UDim.new(0, 6)
+MessageCorner.Parent = MessageBox
+
+-- AHT Selection (Above/Below)
+local AHTLabel = Instance.new("TextLabel")
+AHTLabel.Size = UDim2.new(0.35, 0, 0, 25)
+AHTLabel.Position = UDim2.new(0, 0, 0, 0.27)
+AHTLabel.BackgroundTransparency = 1
+AHTLabel.Text = "Message:"
+AHTLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+AHTLabel.TextSize = 13
+AHTLabel.Font = Enum.Font.GothamMedium
+AHTLabel.TextXAlignment = Enum.TextXAlignment.Left
+AHTLabel.Parent = ContentFrame
+
+-- Above Button
+local AboveButton = Instance.new("TextButton")
+AboveButton.Size = UDim2.new(0.25, 0, 0, 28)
+AboveButton.Position = UDim2.new(0.35, 0, 0.26, 0)
+AboveButton.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
+AboveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+AboveButton.Text = "☝ Above"
+AboveButton.TextSize = 13
+AboveButton.Font = Enum.Font.GothamBold
+AboveButton.Parent = ContentFrame
+
+local AboveCorner = Instance.new("UICorner")
+AboveCorner.CornerRadius = UDim.new(0, 6)
+AboveCorner.Parent = AboveButton
+
+-- Below Button
+local BelowButton = Instance.new("TextButton")
+BelowButton.Size = UDim2.new(0.25, 0, 0, 28)
+BelowButton.Position = UDim2.new(0.63, 0, 0.26, 0)
+BelowButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+BelowButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+BelowButton.Text = "👇 Below"
+BelowButton.TextSize = 13
+BelowButton.Font = Enum.Font.GothamBold
+BelowButton.Parent = ContentFrame
+
+local BelowCorner = Instance.new("UICorner")
+BelowCorner.CornerRadius = UDim.new(0, 6)
+BelowCorner.Parent = BelowButton
+
+-- Send Button
+local SendButton = Instance.new("TextButton")
+SendButton.Size = UDim2.new(0.6, 0, 0, 32)
+SendButton.Position = UDim2.new(0.2, 0, 0.58, 0)
+SendButton.BackgroundColor3 = Color3.fromRGB(50, 200, 120)
+SendButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+SendButton.Text = "▶ Send"
+SendButton.TextSize = 14
+SendButton.Font = Enum.Font.GothamBold
+SendButton.Parent = ContentFrame
+
+local SendCorner = Instance.new("UICorner")
+SendCorner.CornerRadius = UDim.new(0, 8)
+SendCorner.Parent = SendButton
+
+-- Status Label
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, 0, 0, 16)
+StatusLabel.Position = UDim2.new(0, 0, 0, -16)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "● Ready"
+StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+StatusLabel.TextSize = 11
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.Parent = MainFrame
+
+-- Variables
+local isCollapsed = false
+local isAbove = true -- Default to Above
+
+-- Button selection styling
+local function UpdateSelection(selected)
+	if selected == "above" then
+		isAbove = true
+		AboveButton.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
+		AboveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+		BelowButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+		BelowButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+	else
+		isAbove = false
+		BelowButton.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
+		BelowButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+		AboveButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+		AboveButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+	end
+end
+
+-- Above button click
+AboveButton.MouseButton1Click:Connect(function()
+	UpdateSelection("above")
+end)
+
+-- Below button click
+BelowButton.MouseButton1Click:Connect(function()
+	UpdateSelection("below")
+end)
+
+-- Remote function
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ALLREMBINDS = ReplicatedStorage:WaitForChild("ALLREMBINDS")
+local MainEvent = ALLREMBINDS:WaitForChild("Pls_Dont_Hack_Plssssssssss")
+local REMOTE_CODE = "EMMFOSS__!ZCNSJNXCSDWQSANBX"
+
+local function fireServerFunction(functionName, args)
+	MainEvent:FireServer(REMOTE_CODE, functionName, args)
+end
+
+-- Send button click
+SendButton.MouseButton1Click:Connect(function()
+	local message = MessageBox.Text
+	
+	if message == "" or message == "Enter message..." then
+		StatusLabel.Text = "✗ Enter a message"
+		StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+		TweenService:Create(StatusLabel, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
+		return
+	end
+	
+	-- Send with AHT value
+	fireServerFunction("Send_Above_Text", {
+		message,
+		"AC",
+		{AHT = isAbove}
+	})
+	
+	StatusLabel.Text = "✓ Sent!"
+	StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+	
+	-- Button feedback
+	TweenService:Create(SendButton, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(100, 255, 150)}):Play()
+	task.wait(0.15)
+	TweenService:Create(SendButton, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(50, 200, 120)}):Play()
+end)
+
+-- Send button hover
+SendButton.MouseEnter:Connect(function()
+	TweenService:Create(SendButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(70, 220, 140)}):Play()
+end)
+
+SendButton.MouseLeave:Connect(function()
+	TweenService:Create(SendButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 200, 120)}):Play()
+end)
+
+-- Above/Below button hover
+AboveButton.MouseEnter:Connect(function()
+	if AboveButton.BackgroundColor3 == Color3.fromRGB(45, 45, 55) then
+		TweenService:Create(AboveButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(55, 55, 65)}):Play()
+	end
+end)
+
+AboveButton.MouseLeave:Connect(function()
+	if AboveButton.BackgroundColor3 ~= Color3.fromRGB(60, 120, 255) then
+		TweenService:Create(AboveButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 55)}):Play()
+	end
+end)
+
+BelowButton.MouseEnter:Connect(function()
+	if BelowButton.BackgroundColor3 == Color3.fromRGB(45, 45, 55) then
+		TweenService:Create(BelowButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(55, 55, 65)}):Play()
+	end
+end)
+
+BelowButton.MouseLeave:Connect(function()
+	if BelowButton.BackgroundColor3 ~= Color3.fromRGB(60, 120, 255) then
+		TweenService:Create(BelowButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 55)}):Play()
+	end
+end)
+
+-- Collapse/Expand
+CollapseButton.MouseButton1Click:Connect(function()
+	isCollapsed = not isCollapsed
+	
+	if isCollapsed then
+		TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+			Size = UDim2.new(0, 340, 0, 35)
+		}):Play()
+		ContentFrame.Visible = false
+		StatusLabel.Visible = false
+		CollapseButton.Text = "▼"
+	else
+		TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+			Size = UDim2.new(0, 340, 0, 170)
+		}):Play()
+		ContentFrame.Visible = true
+		StatusLabel.Visible = true
+		CollapseButton.Text = "▲"
+	end
+end)
+
+-- Close button
+CloseButton.MouseButton1Click:Connect(function()
+	TweenService:Create(MainFrame, TweenInfo.new(0.25), {
+		BackgroundTransparency = 1
+	}):Play()
+	task.wait(0.25)
+	ScreenGui:Destroy()
+end)
+
+-- Enter key to send
+MessageBox.FocusLost:Connect(function(enterPressed)
+	if enterPressed and MessageBox.Text ~= "" then
+		SendButton:Activate()
+	end
+end)
+
+-- Auto-reset status
+MessageBox.Focused:Connect(function()
+	if StatusLabel.Text:find("✗") or StatusLabel.Text:find("✓") then
+		StatusLabel.Text = "● Ready"
+		StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+	end
+end)
