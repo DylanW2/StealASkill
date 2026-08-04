@@ -1,8 +1,3 @@
---[[
-    SERVER LUCK CHANGER GUI
-    Simple GUI with number input for modifying ServerLuck
-]]
-
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
