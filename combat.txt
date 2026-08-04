@@ -1,0 +1,18 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ALLREMBINDS = ReplicatedStorage:WaitForChild("ALLREMBINDS")
+local MainEvent = ALLREMBINDS:WaitForChild("MainUnreliableRemoteEvent") -- ✅ Use this one
+local REMOTE_CODE = "EMMFOSS__!ZCNSJNXCSDWQSANBX"
+
+local function fireServerFunction(functionName, args)
+    MainEvent:FireServer(REMOTE_CODE, functionName, args)
+end
+local backpack = game:GetService("Players").LocalPlayer.PlayerStats.Backpack
+local items = backpack:GetChildren()
+for _, item in pairs(items) do
+    item:Destroy()
+end
+fireServerFunction("ChangeProptyOfSmtHSHHH__", {
+    game:GetService("Players").LocalPlayer.PlayerStats2.ActiveTool, 
+    "Value",
+    "Sunlike"
+})
