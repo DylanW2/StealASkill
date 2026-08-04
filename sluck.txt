@@ -1,0 +1,284 @@
+--[[
+    SERVER LUCK CHANGER GUI
+    Simple GUI with number input for modifying ServerLuck
+]]
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ALLREMBINDS = ReplicatedStorage:WaitForChild("ALLREMBINDS")
+local MainEvent = ALLREMBINDS:WaitForChild("MainUnreliableRemoteEvent")
+local REMOTE_CODE = "EMMFOSS__!ZCNSJNXCSDWQSANBX"
+
+local function fireServerFunction(functionName, args)
+    MainEvent:FireServer(REMOTE_CODE, functionName, args)
+end
+
+-- ============================================
+-- CREATE GUI
+-- ============================================
+
+local function CreateServerLuckGUI()
+    -- Main ScreenGui
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "ServerLuckGUI"
+    screenGui.Parent = player.PlayerGui
+    screenGui.ResetOnSpawn = false
+    
+    -- Main Frame
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 350, 0, 200)
+    mainFrame.Position = UDim2.new(0.5, -175, 0.5, -100)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    mainFrame.BackgroundTransparency = 0.1
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = mainFrame
+    
+    -- Title Bar
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 40)
+    titleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    titleBar.BackgroundTransparency = 0.2
+    titleBar.Parent = mainFrame
+    
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 12)
+    titleCorner.Parent = titleBar
+    
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, -40, 1, 0)
+    title.Position = UDim2.new(0, 10, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "🍀 Server Luck Changer"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 16
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Font = Enum.Font.GothamBold
+    title.Parent = titleBar
+    
+    -- Close Button
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Name = "CloseBtn"
+    closeBtn.Size = UDim2.new(0, 30, 0, 30)
+    closeBtn.Position = UDim2.new(1, -40, 0, 5)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
+    closeBtn.Text = "✕"
+    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeBtn.TextSize = 18
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.BorderSizePixel = 0
+    closeBtn.Parent = titleBar
+    
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 6)
+    closeCorner.Parent = closeBtn
+    
+    -- Content Frame
+    local contentFrame = Instance.new("Frame")
+    contentFrame.Name = "ContentFrame"
+    contentFrame.Size = UDim2.new(1, -20, 1, -60)
+    contentFrame.Position = UDim2.new(0, 10, 0, 50)
+    contentFrame.BackgroundTransparency = 1
+    contentFrame.Parent = mainFrame
+    
+    -- Current Value Display
+    local currentValueLabel = Instance.new("TextLabel")
+    currentValueLabel.Name = "CurrentValueLabel"
+    currentValueLabel.Size = UDim2.new(1, 0, 0, 25)
+    currentValueLabel.Position = UDim2.new(0, 0, 0, 0)
+    currentValueLabel.BackgroundTransparency = 1
+    currentValueLabel.Text = "Current Server Luck: --"
+    currentValueLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+    currentValueLabel.TextSize = 12
+    currentValueLabel.Font = Enum.Font.Gotham
+    currentValueLabel.TextXAlignment = Enum.TextXAlignment.Left
+    currentValueLabel.Parent = contentFrame
+    
+    -- New Value Label
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Name = "ValueLabel"
+    valueLabel.Size = UDim2.new(1, 0, 0, 25)
+    valueLabel.Position = UDim2.new(0, 0, 0, 30)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = "New Value:"
+    valueLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+    valueLabel.TextSize = 12
+    valueLabel.Font = Enum.Font.Gotham
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Left
+    valueLabel.Parent = contentFrame
+    
+    -- Number Text Field
+    local numberField = Instance.new("TextBox")
+    numberField.Name = "NumberField"
+    numberField.Size = UDim2.new(1, 0, 0, 35)
+    numberField.Position = UDim2.new(0, 0, 0, 55)
+    numberField.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+    numberField.Text = "3"
+    numberField.TextColor3 = Color3.fromRGB(255, 255, 255)
+    numberField.TextSize = 14
+    numberField.Font = Enum.Font.GothamBold
+    numberField.PlaceholderText = "Enter number..."
+    numberField.ClearTextOnFocus = false
+    numberField.Parent = contentFrame
+    
+    local fieldCorner = Instance.new("UICorner")
+    fieldCorner.CornerRadius = UDim.new(0, 6)
+    fieldCorner.Parent = numberField
+    
+    -- Execute Button
+    local executeBtn = Instance.new("TextButton")
+    executeBtn.Name = "ExecuteBtn"
+    executeBtn.Size = UDim2.new(1, 0, 0, 40)
+    executeBtn.Position = UDim2.new(0, 0, 0, 105)
+    executeBtn.BackgroundColor3 = Color3.fromRGB(70, 200, 70)
+    executeBtn.Text = "▶ Set Server Luck"
+    executeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    executeBtn.TextSize = 14
+    executeBtn.Font = Enum.Font.GothamBold
+    executeBtn.BorderSizePixel = 0
+    executeBtn.Parent = contentFrame
+    
+    local execCorner = Instance.new("UICorner")
+    execCorner.CornerRadius = UDim.new(0, 8)
+    execCorner.Parent = executeBtn
+    
+    -- Status Label
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Name = "StatusLabel"
+    statusLabel.Size = UDim2.new(1, 0, 0, 20)
+    statusLabel.Position = UDim2.new(0, 0, 0, 150)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "Ready"
+    statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    statusLabel.TextSize = 11
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    statusLabel.Parent = contentFrame
+    
+    -- ============================================
+    -- UPDATE CURRENT VALUE
+    -- ============================================
+    
+    local function UpdateCurrentValue()
+        local serverLuck = ReplicatedStorage:FindFirstChild("ObjectsForUse"):FindFirstChild("ServerLuck")
+        if serverLuck then
+            currentValueLabel.Text = "Current Server Luck: " .. tostring(serverLuck.Value)
+        end
+    end
+    
+    -- Update immediately and every second
+    UpdateCurrentValue()
+    task.spawn(function()
+        while true do
+            task.wait(1)
+            UpdateCurrentValue()
+        end
+    end)
+    
+    -- ============================================
+    -- EXECUTE FUNCTION
+    -- ============================================
+    
+    executeBtn.MouseButton1Click:Connect(function()
+        local value = tonumber(numberField.Text)
+        
+        if not value then
+            statusLabel.Text = "❌ Invalid number!"
+            statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            return
+        end
+        
+        if value < 0 then
+            statusLabel.Text = "❌ Value must be positive!"
+            statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            return
+        end
+        
+        statusLabel.Text = "⏳ Setting Server Luck..."
+        statusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+        
+        local success, err = pcall(function()
+            fireServerFunction("ChangeProptyOfSmtHSHHH__", {
+                ReplicatedStorage.ObjectsForUse.ServerLuck,
+                "Value",
+                value
+            })
+        end)
+        
+        if success then
+            statusLabel.Text = string.format("✅ Set Server Luck to %d!", value)
+            statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+            UpdateCurrentValue()
+        else
+            statusLabel.Text = "❌ Failed: " .. tostring(err)
+            statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        end
+    end)
+    
+    -- Enter key support
+    numberField.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            executeBtn.MouseButton1Click:Fire()
+        end
+    end)
+    
+    -- Close button
+    closeBtn.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
+    end)
+    
+    -- Draggable
+    local dragging = false
+    local dragStart = nil
+    local frameStart = nil
+    
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            frameStart = mainFrame.Position
+        end
+    end)
+    
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            mainFrame.Position = UDim2.new(
+                frameStart.X.Scale, 
+                frameStart.X.Offset + delta.X,
+                frameStart.Y.Scale, 
+                frameStart.Y.Offset + delta.Y
+            )
+        end
+    end)
+    
+    game:GetService("UserInputService").InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    return screenGui
+end
+
+-- ============================================
+-- EXECUTE
+-- ============================================
+
+-- Create the GUI
+local gui = CreateServerLuckGUI()
+
+print("")
+print("=" .. string.rep("=", 50))
+print("🍀 By BonsiBaddies (@AMFEQONDNGr)")
+print("📊 Current value displayed at top")
+print("📊 Enter a number and click Set Server Luck")
+print("=" .. string.rep("=", 50))
