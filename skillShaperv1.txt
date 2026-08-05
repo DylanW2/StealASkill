@@ -1,0 +1,883 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+
+local ALLREMBINDS = ReplicatedStorage:WaitForChild("ALLREMBINDS")
+local MainEvent = ALLREMBINDS:WaitForChild("MainUnreliableRemoteEvent")
+local REMOTE_CODE = "EMMFOSS__!ZCNSJNXCSDWQSANBX"
+
+local TAU = math.pi * 2
+
+local function fireServerFunction(functionName, args)
+	MainEvent:FireServer(REMOTE_CODE, functionName, args)
+end
+
+local function ApplyVelocity(rootPart, velocity)
+	if not rootPart or not rootPart.Parent then
+		return
+	end
+
+	fireServerFunction("ALVC", {
+		rootPart,
+		velocity,
+		{}
+	})
+end
+
+--// ============================================================
+--// CONFIG
+--// ============================================================
+
+local config = {
+	Mode = "Orbit",
+
+	Radius = 40,
+	Height = 4,
+
+	AngularSpeed = 1.35,
+	Direction = 1,
+
+	FireHz = 5,
+	ScanInterval = 0.75,
+
+	PositionGain = 3.8,
+	VelocityGain = 0.9,
+	MaxCommand = 95,
+
+	RampTime = 0.8,
+	BrakeOnStop = true,
+
+	-- mode flavor controls
+	VerticalAmplitude = 16,
+	RadiusAmplitude = 14,
+	FlowerPetals = 5,
+	TrailSpacing = 0.32,
+}
+
+local modes = {
+	"Orbit",
+	"Helix",
+	"FigureEight",
+	"Vortex",
+	"Flower",
+	"WaveRing",
+	"DNA",
+	"Comet",
+	"Pulse",
+}
+
+--// ============================================================
+--// STATE
+--// ============================================================
+
+local orbitRunning = false
+local heartbeatConnection = nil
+
+local orbitClock = 0
+local scanAccumulator = 0
+local sendAccumulator = 0
+local startClock = 0
+local lastSendDt = 1 / config.FireHz
+
+local orbitList = {}
+local orbitMap = {}
+
+local statusLabel = nil
+local modeButton = nil
+
+--// ============================================================
+--// HELPERS
+--// ============================================================
+
+local function clampMagnitude(v, maxMag)
+	local mag = v.Magnitude
+	if mag > maxMag and mag > 0 then
+		return v.Unit * maxMag
+	end
+	return v
+end
+
+local function getPlayerRoot()
+	local char = player.Character
+	if not char then
+		return nil
+	end
+
+	local root = char:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		return root
+	end
+
+	return nil
+end
+
+local function isPlayerCharacter(model)
+	if not model or not model:IsA("Model") then
+		return false
+	end
+
+	return Players:GetPlayerFromCharacter(model) ~= nil
+end
+
+local function isValidHumanoid(humanoid)
+	if not humanoid or not humanoid:IsA("Humanoid") then
+		return false
+	end
+
+	if humanoid.Health <= 0 then
+		return false
+	end
+
+	local model = humanoid.Parent
+	if not model or not model:IsA("Model") then
+		return false
+	end
+
+	-- Important:
+	-- filters out the local player's character AND every other player character.
+	if  isPlayerCharacter(model) then
+		return false
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return false
+	end
+
+	return true
+end
+
+local function isValidOrbitData(data)
+	if not data then
+		return false
+	end
+
+	local humanoid = data.Humanoid
+	local rootPart = data.RootPart
+
+	if not humanoid or not rootPart then
+		return false
+	end
+
+	if not humanoid.Parent or humanoid.Health <= 0 then
+		return false
+	end
+
+	if not rootPart.Parent then
+		return false
+	end
+
+	if isPlayerCharacter(humanoid.Parent) then
+		return false
+	end
+
+	return true
+end
+
+local function phaseFromCurrentPosition(rootPart)
+	local centerRoot = getPlayerRoot()
+	if not centerRoot then
+		return math.random() * TAU
+	end
+
+	local delta = rootPart.Position - centerRoot.Position
+	local flat = Vector3.new(delta.X, 0, delta.Z)
+
+	if flat.Magnitude < 0.05 then
+		return math.random() * TAU
+	end
+
+	local currentAngle = math.atan(flat.Z, flat.X)
+	return currentAngle - config.Direction * orbitClock * config.AngularSpeed
+end
+
+local function cleanupOrbitList()
+	for i = #orbitList, 1, -1 do
+		local data = orbitList[i]
+		if not isValidOrbitData(data) then
+			if data and data.RootPart then
+				orbitMap[data.RootPart] = nil
+			end
+			table.remove(orbitList, i)
+		end
+	end
+end
+
+local function updateStatus()
+	if statusLabel then
+		local state = orbitRunning and "RUNNING" or "STOPPED"
+
+		statusLabel.Text = string.format(
+			"Status: %s | Mode: %s | Targets: %d | Radius: %.1f | Speed: %.2f",
+			state,
+			config.Mode,
+			#orbitList,
+			config.Radius,
+			config.AngularSpeed
+		)
+	end
+
+	if modeButton then
+		modeButton.Text = "MODE: " .. config.Mode
+	end
+end
+
+--// ============================================================
+--// TARGET MANAGEMENT
+--// ============================================================
+
+local function addHumanoid(humanoid)
+	if not isValidHumanoid(humanoid) then
+		return false
+	end
+
+	local model = humanoid.Parent
+	local rootPart = model:FindFirstChild("HumanoidRootPart")
+
+	if orbitMap[rootPart] then
+		return false
+	end
+
+	local index = #orbitList + 1
+
+	local data = {
+		Humanoid = humanoid,
+		Character = model,
+		RootPart = rootPart,
+
+		Index = index,
+		Phase = phaseFromCurrentPosition(rootPart),
+
+		RandomA = math.random() * TAU,
+		RandomB = math.random() * TAU,
+		RandomRadius = 0.8 + math.random() * 0.4,
+
+		LastTargetPos = nil,
+	}
+
+	orbitMap[rootPart] = data
+	table.insert(orbitList, data)
+
+	return true
+end
+
+local function scanHumanoids()
+	cleanupOrbitList()
+
+	local total = 0
+	local added = 0
+
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("Humanoid") and isValidHumanoid(obj) then
+			total += 1
+			if addHumanoid(obj) then
+				added += 1
+			end
+		end
+	end
+
+	updateStatus()
+	return added, total
+end
+
+local function rephaseSlots()
+	local count = #orbitList
+	if count <= 0 then
+		return
+	end
+
+	for index, data in ipairs(orbitList) do
+		data.Index = index
+		data.Phase = ((index - 1) / count) * TAU - config.Direction * orbitClock * config.AngularSpeed
+		data.LastTargetPos = nil
+	end
+end
+
+local function resetTargetMemory()
+	for _, data in ipairs(orbitList) do
+		data.LastTargetPos = nil
+	end
+end
+
+--// ============================================================
+--// MODE TARGET POSITIONS
+--// ============================================================
+
+local function getTargetPosition(data, index, count, centerPos)
+	count = math.max(count, 1)
+
+	local t = orbitClock
+	local speed = config.AngularSpeed
+	local dir = config.Direction
+	local radius = config.Radius
+	local height = config.Height
+
+	local baseAngle = dir * t * speed + data.Phase
+	local slotProgress = (index - 1) / count
+	local slotAngle = slotProgress * TAU
+
+	local sinA = math.sin(baseAngle)
+	local cosA = math.cos(baseAngle)
+
+	local mode = config.Mode
+
+	if mode == "Orbit" then
+		return centerPos + Vector3.new(
+			cosA * radius,
+			height,
+			sinA * radius
+		)
+
+	elseif mode == "Helix" then
+		local yWave = math.sin(baseAngle * 2 + data.RandomA) * config.VerticalAmplitude
+
+		return centerPos + Vector3.new(
+			cosA * radius,
+			height + yWave,
+			sinA * radius
+		)
+
+	elseif mode == "FigureEight" then
+		-- horizontal infinity/lemniscate path
+		local x = math.sin(baseAngle) * radius
+		local z = math.sin(baseAngle) * math.cos(baseAngle) * radius * 1.15
+		local y = height + math.sin(baseAngle * 2 + data.RandomA) * (config.VerticalAmplitude * 0.25)
+
+		return centerPos + Vector3.new(x, y, z)
+
+	elseif mode == "Vortex" then
+		local pulse = 0.5 + 0.5 * math.sin(t * 1.7 + data.Phase)
+		local r = radius * (0.35 + pulse * 1.15)
+		local y = height + math.cos(baseAngle * 2) * config.VerticalAmplitude
+
+		return centerPos + Vector3.new(
+			cosA * r,
+			y,
+			sinA * r
+		)
+
+	elseif mode == "Flower" then
+		local petals = math.max(1, config.FlowerPetals)
+		local flower = 0.72 + 0.28 * math.cos(petals * baseAngle)
+		local r = radius * flower
+		local y = height + math.sin(petals * baseAngle) * (config.VerticalAmplitude * 0.25)
+
+		return centerPos + Vector3.new(
+			cosA * r,
+			y,
+			sinA * r
+		)
+
+	elseif mode == "WaveRing" then
+		-- all stay in a clean ring, but a traveling vertical wave moves through the ring
+		local wave = math.sin(slotAngle * 3 - t * speed * 3)
+		local y = height + wave * config.VerticalAmplitude
+
+		return centerPos + Vector3.new(
+			math.cos(slotAngle + dir * t * speed) * radius,
+			y,
+			math.sin(slotAngle + dir * t * speed) * radius
+		)
+
+	elseif mode == "DNA" then
+		-- two opposing strands rotating around the player
+		local pairIndex = math.floor((index - 1) / 2)
+		local pairCount = math.max(math.ceil(count / 2), 1)
+		local pairProgress = pairIndex / pairCount
+
+		local strandOffset = ((index % 2) == 0) and math.pi or 0
+		local a = dir * t * speed + pairProgress * TAU + strandOffset
+
+		local yWave = math.sin(pairProgress * TAU * 2 + t * speed * 2) * config.VerticalAmplitude
+
+		return centerPos + Vector3.new(
+			math.cos(a) * radius,
+			height + yWave,
+			math.sin(a) * radius
+		)
+
+	elseif mode == "Comet" then
+		-- a trailing spiral/comet tail around the player
+		local trail = (index - 1) * config.TrailSpacing
+		local a = dir * t * speed - trail
+		local fade = 1 - ((index - 1) / math.max(count - 1, 1)) * 0.35
+		local r = radius * fade
+		local y = height + math.sin(a * 1.5) * (config.VerticalAmplitude * 0.35)
+
+		return centerPos + Vector3.new(
+			math.cos(a) * r,
+			y,
+			math.sin(a) * r
+		)
+
+	elseif mode == "Pulse" then
+		-- the whole formation breathes inward/outward while rotating
+		local pulse = 0.5 + 0.5 * math.sin(t * speed * 2.2)
+		local r = radius + (pulse - 0.5) * config.RadiusAmplitude * 2
+		local a = slotAngle + dir * t * speed
+
+		local y = height + math.sin(t * speed * 3 + slotAngle) * (config.VerticalAmplitude * 0.25)
+
+		return centerPos + Vector3.new(
+			math.cos(a) * r,
+			y,
+			math.sin(a) * r
+		)
+	end
+
+	-- fallback
+	return centerPos + Vector3.new(
+		cosA * radius,
+		height,
+		sinA * radius
+	)
+end
+
+--// ============================================================
+--// BATCHED IMPULSE CALCULATION
+--// ============================================================
+
+local function flushVelocityBatch(batch)
+	-- All commands are already computed before this point.
+	-- This keeps the impulses same-frame/tight-batched.
+	for i = 1, #batch do
+		local item = batch[i]
+		ApplyVelocity(item.RootPart, item.Command)
+	end
+end
+
+local function computeMovementBatch()
+	local centerRoot = getPlayerRoot()
+	if not centerRoot then
+		return nil
+	end
+
+	local centerPos = centerRoot.Position
+	local centerVel = centerRoot.AssemblyLinearVelocity
+
+	local count = #orbitList
+	if count <= 0 then
+		return nil
+	end
+
+	local batch = {}
+
+	local rampAlpha = 1
+	if config.RampTime > 0 then
+		rampAlpha = math.clamp((os.clock() - startClock) / config.RampTime, 0, 1)
+	end
+
+	local dt = math.max(lastSendDt, 1 / 240)
+
+	for i = #orbitList, 1, -1 do
+		local data = orbitList[i]
+
+		if not isValidOrbitData(data) then
+			if data and data.RootPart then
+				orbitMap[data.RootPart] = nil
+			end
+			table.remove(orbitList, i)
+			continue
+		end
+
+		local rootPart = data.RootPart
+		local index = data.Index or i
+
+		local targetPos = getTargetPosition(data, index, count, centerPos)
+
+		local desiredVelocity
+		if data.LastTargetPos then
+			desiredVelocity = (targetPos - data.LastTargetPos) / dt
+		else
+			desiredVelocity = centerVel
+		end
+
+		data.LastTargetPos = targetPos
+
+		local positionError = targetPos - rootPart.Position
+		local velocityError = desiredVelocity - rootPart.AssemblyLinearVelocity
+
+		local command =
+			positionError * config.PositionGain
+			+ velocityError * config.VelocityGain
+
+		command *= rampAlpha
+		command = clampMagnitude(command, config.MaxCommand)
+
+		table.insert(batch, {
+			RootPart = rootPart,
+			Command = command,
+		})
+	end
+
+	return batch
+end
+
+--// ============================================================
+--// HEARTBEAT LOOP
+--// ============================================================
+
+local function orbitHeartbeat(dt)
+	if not orbitRunning then
+		return
+	end
+
+	orbitClock += dt
+	scanAccumulator += dt
+	sendAccumulator += dt
+
+	if scanAccumulator >= config.ScanInterval then
+		scanAccumulator = 0
+		scanHumanoids()
+	end
+
+	local fireInterval = 1 / math.max(config.FireHz, 1)
+	if sendAccumulator < fireInterval then
+		return
+	end
+
+	lastSendDt = sendAccumulator
+	sendAccumulator = 0
+
+	local batch = computeMovementBatch()
+	if batch and #batch > 0 then
+		flushVelocityBatch(batch)
+	end
+
+	updateStatus()
+end
+
+--// ============================================================
+--// START / STOP
+--// ============================================================
+
+local function StartOrbit()
+	if orbitRunning then
+		return
+	end
+
+	table.clear(orbitList)
+	table.clear(orbitMap)
+
+	orbitRunning = true
+	orbitClock = 0
+	scanAccumulator = config.ScanInterval
+	sendAccumulator = 0
+	lastSendDt = 1 / config.FireHz
+	startClock = os.clock()
+
+	local added, total = scanHumanoids()
+	rephaseSlots()
+
+	if heartbeatConnection then
+		heartbeatConnection:Disconnect()
+		heartbeatConnection = nil
+	end
+
+	heartbeatConnection = RunService.Heartbeat:Connect(orbitHeartbeat)
+
+	print(string.format("Movement mode started. Mode: %s | NPC humanoids found: %d | Added: %d", config.Mode, total, added))
+	updateStatus()
+end
+
+local function StopOrbit()
+	if not orbitRunning then
+		return
+	end
+
+	orbitRunning = false
+
+	if heartbeatConnection then
+		heartbeatConnection:Disconnect()
+		heartbeatConnection = nil
+	end
+
+	if config.BrakeOnStop then
+		for _, data in ipairs(orbitList) do
+			if isValidOrbitData(data) then
+				local rootPart = data.RootPart
+				local brake = clampMagnitude(-rootPart.AssemblyLinearVelocity * 0.85, config.MaxCommand)
+				ApplyVelocity(rootPart, brake)
+			end
+		end
+	else
+		for _, data in ipairs(orbitList) do
+			if isValidOrbitData(data) then
+				ApplyVelocity(data.RootPart, Vector3.zero)
+			end
+		end
+	end
+
+	table.clear(orbitList)
+	table.clear(orbitMap)
+
+	print("Movement mode stopped.")
+	updateStatus()
+end
+
+--// ============================================================
+--// MODE CONTROL
+--// ============================================================
+
+local function setMode(newMode)
+	config.Mode = newMode
+	resetTargetMemory()
+	rephaseSlots()
+	startClock = os.clock()
+	updateStatus()
+	print("Mode set to:", config.Mode)
+end
+
+local function cycleMode()
+	local currentIndex = 1
+
+	for i, modeName in ipairs(modes) do
+		if modeName == config.Mode then
+			currentIndex = i
+			break
+		end
+	end
+
+	local nextIndex = currentIndex + 1
+	if nextIndex > #modes then
+		nextIndex = 1
+	end
+
+	setMode(modes[nextIndex])
+end
+
+--// ============================================================
+--// GUI
+--// ============================================================
+
+local function destroyOldGui()
+	local pg = player:WaitForChild("PlayerGui")
+	local old = pg:FindFirstChild("MovementModeGui")
+	if old then
+		old:Destroy()
+	end
+end
+
+local function createGui()
+	destroyOldGui()
+
+	local playerGui = player:WaitForChild("PlayerGui")
+
+	local screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "MovementModeGui"
+	screenGui.ResetOnSpawn = false
+	screenGui.Parent = playerGui
+
+	local frame = Instance.new("Frame")
+	frame.Name = "Main"
+	frame.Size = UDim2.fromOffset(350, 520)
+	frame.Position = UDim2.new(0, 25, 0.5, -260)
+	frame.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
+	frame.BorderSizePixel = 0
+	frame.Active = true
+	frame.Draggable = true
+	frame.Parent = screenGui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 10)
+	corner.Parent = frame
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(90, 90, 120)
+	stroke.Thickness = 1
+	stroke.Parent = frame
+
+	local title = Instance.new("TextLabel")
+	title.Name = "Title"
+	title.Size = UDim2.new(1, -20, 0, 34)
+	title.Position = UDim2.fromOffset(10, 8)
+	title.BackgroundTransparency = 1
+	title.Text = "By BonsiBaddies (@AMFEQONDNGr)"
+	title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	title.Font = Enum.Font.GothamBold
+	title.TextSize = 17
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Parent = frame
+
+	statusLabel = Instance.new("TextLabel")
+	statusLabel.Name = "Status"
+	statusLabel.Size = UDim2.new(1, -20, 0, 44)
+	statusLabel.Position = UDim2.fromOffset(10, 42)
+	statusLabel.BackgroundColor3 = Color3.fromRGB(32, 32, 40)
+	statusLabel.BorderSizePixel = 0
+	statusLabel.TextColor3 = Color3.fromRGB(210, 230, 255)
+	statusLabel.Font = Enum.Font.Gotham
+	statusLabel.TextSize = 12
+	statusLabel.TextWrapped = true
+	statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+	statusLabel.Parent = frame
+
+	local statusCorner = Instance.new("UICorner")
+	statusCorner.CornerRadius = UDim.new(0, 6)
+	statusCorner.Parent = statusLabel
+
+	local function makeLabel(text, x, y, w, h)
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.fromOffset(w, h)
+		label.Position = UDim2.fromOffset(x, y)
+		label.BackgroundTransparency = 1
+		label.Text = text
+		label.TextColor3 = Color3.fromRGB(220, 220, 230)
+		label.Font = Enum.Font.Gotham
+		label.TextSize = 13
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.Parent = frame
+		return label
+	end
+
+	local function makeBox(key, x, y)
+		local box = Instance.new("TextBox")
+		box.Name = key .. "Box"
+		box.Size = UDim2.fromOffset(115, 28)
+		box.Position = UDim2.fromOffset(x, y)
+		box.BackgroundColor3 = Color3.fromRGB(38, 38, 48)
+		box.BorderSizePixel = 0
+		box.Text = tostring(config[key])
+		box.TextColor3 = Color3.fromRGB(255, 255, 255)
+		box.PlaceholderColor3 = Color3.fromRGB(150, 150, 160)
+		box.Font = Enum.Font.Gotham
+		box.TextSize = 13
+		box.ClearTextOnFocus = false
+		box.Parent = frame
+
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, 6)
+		c.Parent = box
+
+		box.FocusLost:Connect(function()
+			local n = tonumber(box.Text)
+			if n then
+				config[key] = n
+
+				if key == "FireHz" then
+					config.FireHz = math.clamp(config.FireHz, 1, 120)
+				elseif key == "FlowerPetals" then
+					config.FlowerPetals = math.max(1, math.floor(config.FlowerPetals))
+				elseif key == "MaxCommand" then
+					config.MaxCommand = math.max(1, config.MaxCommand)
+				end
+
+				resetTargetMemory()
+			end
+
+			box.Text = tostring(config[key])
+			updateStatus()
+		end)
+
+		return box
+	end
+
+	local function makeButton(text, x, y, w, h, color, callback)
+		local btn = Instance.new("TextButton")
+		btn.Size = UDim2.fromOffset(w, h)
+		btn.Position = UDim2.fromOffset(x, y)
+		btn.BackgroundColor3 = color
+		btn.BorderSizePixel = 0
+		btn.Text = text
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		btn.Font = Enum.Font.GothamBold
+		btn.TextSize = 13
+		btn.Parent = frame
+
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, 7)
+		c.Parent = btn
+
+		btn.MouseButton1Click:Connect(callback)
+
+		return btn
+	end
+
+	local y = 98
+	local rowGap = 36
+
+	modeButton = makeButton("MODE: " .. config.Mode, 14, y, 322, 34, Color3.fromRGB(115, 80, 190), function()
+		cycleMode()
+	end)
+
+	y += 44
+
+	makeLabel("Radius", 14, y, 140, 24)
+	makeBox("Radius", 210, y - 2)
+	y += rowGap
+
+	makeLabel("Height", 14, y, 140, 24)
+	makeBox("Height", 210, y - 2)
+	y += rowGap
+
+	makeLabel("Angular Speed", 14, y, 150, 24)
+	makeBox("AngularSpeed", 210, y - 2)
+	y += rowGap
+
+	makeLabel("Vertical Amp", 14, y, 150, 24)
+	makeBox("VerticalAmplitude", 210, y - 2)
+	y += rowGap
+
+	makeLabel("Radius Amp", 14, y, 150, 24)
+	makeBox("RadiusAmplitude", 210, y - 2)
+	y += rowGap
+
+	makeLabel("Flower Petals", 14, y, 150, 24)
+	makeBox("FlowerPetals", 210, y - 2)
+	y += rowGap
+
+	makeLabel("Fire Hz", 14, y, 140, 24)
+	makeBox("FireHz", 210, y - 2)
+	y += rowGap
+
+	makeLabel("Position Gain", 14, y, 150, 24)
+	makeBox("PositionGain", 210, y - 2)
+	y += rowGap
+
+	makeLabel("Velocity Gain", 14, y, 150, 24)
+	makeBox("VelocityGain", 210, y - 2)
+	y += rowGap
+
+	makeLabel("Max Command", 14, y, 150, 24)
+	makeBox("MaxCommand", 210, y - 2)
+	y += rowGap + 4
+
+	makeButton("START", 14, y, 155, 34, Color3.fromRGB(50, 145, 80), function()
+		StartOrbit()
+	end)
+
+	makeButton("STOP", 181, y, 155, 34, Color3.fromRGB(180, 55, 55), function()
+		StopOrbit()
+	end)
+
+	y += 44
+
+	makeButton("REFRESH", 14, y, 100, 32, Color3.fromRGB(65, 95, 170), function()
+		local added, total = scanHumanoids()
+		print(string.format("Refresh complete. NPC humanoids: %d | Added: %d", total, added))
+		updateStatus()
+	end)
+
+	makeButton("REPHASE", 124, y, 100, 32, Color3.fromRGB(105, 85, 180), function()
+		rephaseSlots()
+		startClock = os.clock()
+		print("Rephased slots.")
+	end)
+
+	makeButton("DIR", 234, y, 102, 32, Color3.fromRGB(100, 100, 120), function()
+		config.Direction *= -1
+		resetTargetMemory()
+		startClock = os.clock()
+		print("Direction:", config.Direction == 1 and "Counter-clockwise" or "Clockwise")
+	end)
+
+	updateStatus()
+end
+
+createGui()
+
+print("NPC movement GUI loaded.")
+print("Player humanoids are filtered out.")
+print("Current mode:", config.Mode)
