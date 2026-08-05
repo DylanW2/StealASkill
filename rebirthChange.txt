@@ -29,8 +29,8 @@ local function CreatePropertyChangerGUI()
     -- Main Frame
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 350, 0, 200)
-    mainFrame.Position = UDim2.new(0.5, -175, 0.5, -100)
+    mainFrame.Size = UDim2.new(0, 400, 0, 250)
+    mainFrame.Position = UDim2.new(0.5, -200, 0.5, -125)
     mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
     mainFrame.BackgroundTransparency = 0.1
     mainFrame.BorderSizePixel = 0
@@ -43,7 +43,7 @@ local function CreatePropertyChangerGUI()
     -- Title Bar
     local titleBar = Instance.new("Frame")
     titleBar.Name = "TitleBar"
-    titleBar.Size = UDim2.new(1, 0, 0, 40)
+    titleBar.Size = UDim2.new(1, 0, 0, 50)
     titleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
     titleBar.BackgroundTransparency = 0.2
     titleBar.Parent = mainFrame
@@ -59,7 +59,7 @@ local function CreatePropertyChangerGUI()
     title.BackgroundTransparency = 1
     title.Text = "Rebirth Changer by BonsiBaddies (@AMFEQONDNGr)"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 16
+    title.TextSize = 14
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Font = Enum.Font.GothamBold
     title.Parent = titleBar
@@ -68,7 +68,7 @@ local function CreatePropertyChangerGUI()
     local closeBtn = Instance.new("TextButton")
     closeBtn.Name = "CloseBtn"
     closeBtn.Size = UDim2.new(0, 30, 0, 30)
-    closeBtn.Position = UDim2.new(1, -40, 0, 5)
+    closeBtn.Position = UDim2.new(1, -40, 0, 10)
     closeBtn.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
     closeBtn.Text = "✕"
     closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -85,28 +85,15 @@ local function CreatePropertyChangerGUI()
     local contentFrame = Instance.new("Frame")
     contentFrame.Name = "ContentFrame"
     contentFrame.Size = UDim2.new(1, -20, 1, -60)
-    contentFrame.Position = UDim2.new(0, 10, 0, 50)
+    contentFrame.Position = UDim2.new(0, 10, 0, 60)
     contentFrame.BackgroundTransparency = 1
     contentFrame.Parent = mainFrame
-    
-    -- Target Label
-    local targetLabel = Instance.new("TextLabel")
-    targetLabel.Name = "TargetLabel"
-    targetLabel.Size = UDim2.new(1, 0, 0, 25)
-    targetLabel.Position = UDim2.new(0, 0, 0, 0)
-    targetLabel.BackgroundTransparency = 1
-    targetLabel.Text = "Target: devilboy1453.Rebirths"
-    targetLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
-    targetLabel.TextSize = 12
-    targetLabel.Font = Enum.Font.Gotham
-    targetLabel.TextXAlignment = Enum.TextXAlignment.Left
-    targetLabel.Parent = contentFrame
     
     -- Value Label
     local valueLabel = Instance.new("TextLabel")
     valueLabel.Name = "ValueLabel"
     valueLabel.Size = UDim2.new(1, 0, 0, 25)
-    valueLabel.Position = UDim2.new(0, 0, 0, 30)
+    valueLabel.Position = UDim2.new(0, 0, 0, 0)
     valueLabel.BackgroundTransparency = 1
     valueLabel.Text = "New Value:"
     valueLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
@@ -119,7 +106,7 @@ local function CreatePropertyChangerGUI()
     local numberField = Instance.new("TextBox")
     numberField.Name = "NumberField"
     numberField.Size = UDim2.new(1, 0, 0, 35)
-    numberField.Position = UDim2.new(0, 0, 0, 55)
+    numberField.Position = UDim2.new(0, 0, 0, 30)
     numberField.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
     numberField.Text = "999"
     numberField.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -137,7 +124,7 @@ local function CreatePropertyChangerGUI()
     local executeBtn = Instance.new("TextButton")
     executeBtn.Name = "ExecuteBtn"
     executeBtn.Size = UDim2.new(1, 0, 0, 40)
-    executeBtn.Position = UDim2.new(0, 0, 0, 105)
+    executeBtn.Position = UDim2.new(0, 0, 0, 80)
     executeBtn.BackgroundColor3 = Color3.fromRGB(70, 200, 70)
     executeBtn.Text = "▶ Execute"
     executeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -154,7 +141,7 @@ local function CreatePropertyChangerGUI()
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Name = "StatusLabel"
     statusLabel.Size = UDim2.new(1, 0, 0, 20)
-    statusLabel.Position = UDim2.new(0, 0, 0, 150)
+    statusLabel.Position = UDim2.new(0, 0, 0, 130)
     statusLabel.BackgroundTransparency = 1
     statusLabel.Text = "Ready"
     statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
@@ -180,8 +167,8 @@ local function CreatePropertyChangerGUI()
         statusLabel.Text = "⏳ Executing..."
         statusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
         
-        -- Target player
-        local targetPlayer = Players:FindFirstChild("devilboy1453")
+        -- Target the current player
+        local targetPlayer = player
         if not targetPlayer then
             statusLabel.Text = "❌ Player not found!"
             statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
@@ -259,9 +246,3 @@ end
 -- Create the GUI
 local gui = CreatePropertyChangerGUI()
 
-print("")
-print("=" .. string.rep("=", 50))
-print("⚙️ PROPERTY CHANGER GUI LOADED!")
-print("📊 Target: devilboy1453.Rebirths")
-print("📊 Enter a number and click Execute")
-print("=" .. string.rep("=", 50))
