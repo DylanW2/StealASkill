@@ -1,210 +1,15 @@
 local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
 
--- Services
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
+--// ============================================================
+--// REMOTE SETUP
+--// ============================================================
 
--- Create ScreenGui
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "RemoteSenderGUI"
-ScreenGui.Parent = PlayerGui
-ScreenGui.ResetOnSpawn = false
-
--- Main Frame
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 340, 0, 170)
-MainFrame.Position = UDim2.new(0.5, -170, 0.5, -85)
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
-MainFrame.Draggable = true
-MainFrame.Parent = ScreenGui
-
--- Corner rounding
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 12)
-Corner.Parent = MainFrame
-
--- Subtle border
-local Border = Instance.new("UIStroke")
-Border.Color = Color3.fromRGB(255, 255, 255)
-Border.Transparency = 0.9
-Border.Thickness = 1
-Border.Parent = MainFrame
-
--- Header/Title Bar
-local HeaderFrame = Instance.new("Frame")
-HeaderFrame.Size = UDim2.new(1, 0, 0, 35)
-HeaderFrame.Position = UDim2.new(0, 0, 0, 0)
-HeaderFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-HeaderFrame.BorderSizePixel = 0
-HeaderFrame.Parent = MainFrame
-
-local HeaderCorner = Instance.new("UICorner")
-HeaderCorner.CornerRadius = UDim.new(0, 12)
-HeaderCorner.Parent = HeaderFrame
-
--- Title Label
-local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(0.7, 0, 1, 0)
-TitleLabel.Position = UDim2.new(0.05, 0, 0, 0)
-TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "By BonsiBaddies (@AMFEQONDNGR)"
-TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleLabel.TextSize = 15
-TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-TitleLabel.Font = Enum.Font.GothamBold
-TitleLabel.Parent = HeaderFrame
-
--- Collapse/Expand Button
-local CollapseButton = Instance.new("TextButton")
-CollapseButton.Size = UDim2.new(0, 28, 0, 28)
-CollapseButton.Position = UDim2.new(1, -65, 0, 3.5)
-CollapseButton.BackgroundTransparency = 1
-CollapseButton.Text = "▲"
-CollapseButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-CollapseButton.TextSize = 14
-CollapseButton.Font = Enum.Font.GothamBold
-CollapseButton.Parent = HeaderFrame
-
--- Close Button
-local CloseButton = Instance.new("TextButton")
-CloseButton.Size = UDim2.new(0, 28, 0, 28)
-CloseButton.Position = UDim2.new(1, -33, 0, 3.5)
-CloseButton.BackgroundTransparency = 1
-CloseButton.Text = "✕"
-CloseButton.TextColor3 = Color3.fromRGB(255, 100, 100)
-CloseButton.TextSize = 14
-CloseButton.Font = Enum.Font.GothamBold
-CloseButton.Parent = HeaderFrame
-
--- Content Frame
-local ContentFrame = Instance.new("Frame")
-ContentFrame.Size = UDim2.new(1, -20, 1, -45)
-ContentFrame.Position = UDim2.new(0, 10, 0, 38)
-ContentFrame.BackgroundTransparency = 1
-ContentFrame.Parent = MainFrame
-
--- Message Input
-local MessageBox = Instance.new("TextBox")
-MessageBox.Size = UDim2.new(1, 0, 0, 32)
-MessageBox.Position = UDim2.new(0, 0, 0, 0)
-MessageBox.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-MessageBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-MessageBox.PlaceholderText = "Enter message..."
-MessageBox.PlaceholderColor3 = Color3.fromRGB(130, 130, 150)
-MessageBox.Font = Enum.Font.Gotham
-MessageBox.TextSize = 14
-MessageBox.ClearTextOnFocus = false
-MessageBox.Parent = ContentFrame
-
-local MessageCorner = Instance.new("UICorner")
-MessageCorner.CornerRadius = UDim.new(0, 6)
-MessageCorner.Parent = MessageBox
-
--- AHT Selection (Above/Below)
-local AHTLabel = Instance.new("TextLabel")
-AHTLabel.Size = UDim2.new(0.35, 0, 0, 25)
-AHTLabel.Position = UDim2.new(0, 0, 0, 0.27)
-AHTLabel.BackgroundTransparency = 1
-AHTLabel.Text = "Message:"
-AHTLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
-AHTLabel.TextSize = 13
-AHTLabel.Font = Enum.Font.GothamMedium
-AHTLabel.TextXAlignment = Enum.TextXAlignment.Left
-AHTLabel.Parent = ContentFrame
-
--- Above Button
-local AboveButton = Instance.new("TextButton")
-AboveButton.Size = UDim2.new(0.25, 0, 0, 28)
-AboveButton.Position = UDim2.new(0.35, 0, 0.26, 0)
-AboveButton.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
-AboveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-AboveButton.Text = "☝ Above"
-AboveButton.TextSize = 13
-AboveButton.Font = Enum.Font.GothamBold
-AboveButton.Parent = ContentFrame
-
-local AboveCorner = Instance.new("UICorner")
-AboveCorner.CornerRadius = UDim.new(0, 6)
-AboveCorner.Parent = AboveButton
-
--- Below Button
-local BelowButton = Instance.new("TextButton")
-BelowButton.Size = UDim2.new(0.25, 0, 0, 28)
-BelowButton.Position = UDim2.new(0.63, 0, 0.26, 0)
-BelowButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-BelowButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-BelowButton.Text = "👇 Below"
-BelowButton.TextSize = 13
-BelowButton.Font = Enum.Font.GothamBold
-BelowButton.Parent = ContentFrame
-
-local BelowCorner = Instance.new("UICorner")
-BelowCorner.CornerRadius = UDim.new(0, 6)
-BelowCorner.Parent = BelowButton
-
--- Send Button
-local SendButton = Instance.new("TextButton")
-SendButton.Size = UDim2.new(0.6, 0, 0, 32)
-SendButton.Position = UDim2.new(0.2, 0, 0.58, 0)
-SendButton.BackgroundColor3 = Color3.fromRGB(50, 200, 120)
-SendButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-SendButton.Text = "▶ Send"
-SendButton.TextSize = 14
-SendButton.Font = Enum.Font.GothamBold
-SendButton.Parent = ContentFrame
-
-local SendCorner = Instance.new("UICorner")
-SendCorner.CornerRadius = UDim.new(0, 8)
-SendCorner.Parent = SendButton
-
--- Status Label
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(1, 0, 0, 16)
-StatusLabel.Position = UDim2.new(0, 0, 0, -16)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "● Ready"
-StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-StatusLabel.TextSize = 11
-StatusLabel.Font = Enum.Font.Gotham
-StatusLabel.Parent = MainFrame
-
--- Variables
-local isCollapsed = false
-local isAbove = true -- Default to Above
-
--- Button selection styling
-local function UpdateSelection(selected)
-	if selected == "above" then
-		isAbove = true
-		AboveButton.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
-		AboveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-		BelowButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-		BelowButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-	else
-		isAbove = false
-		BelowButton.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
-		BelowButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-		AboveButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-		AboveButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-	end
-end
-
--- Above button click
-AboveButton.MouseButton1Click:Connect(function()
-	UpdateSelection("above")
-end)
-
--- Below button click
-BelowButton.MouseButton1Click:Connect(function()
-	UpdateSelection("below")
-end)
-
--- Remote function
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ALLREMBINDS = ReplicatedStorage:WaitForChild("ALLREMBINDS")
 local MainEvent = ALLREMBINDS:WaitForChild("Pls_Dont_Hack_Plssssssssss")
 local REMOTE_CODE = "EMMFOSS__!ZCNSJNXCSDWQSANBX"
@@ -213,108 +18,1017 @@ local function fireServerFunction(functionName, args)
 	MainEvent:FireServer(REMOTE_CODE, functionName, args)
 end
 
--- Send button click
-SendButton.MouseButton1Click:Connect(function()
-	local message = MessageBox.Text
-	
-	if message == "" or message == "Enter message..." then
-		StatusLabel.Text = "✗ Enter a message"
-		StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-		TweenService:Create(StatusLabel, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
+--// ============================================================
+--// CLEAN OLD GUI
+--// ============================================================
+
+local oldGui = PlayerGui:FindFirstChild("RemoteSenderGUI")
+if oldGui then
+	oldGui:Destroy()
+end
+
+--// ============================================================
+--// THEME
+--// ============================================================
+
+local THEME = {
+	Panel = Color3.fromRGB(24, 24, 32),
+	Header = Color3.fromRGB(34, 34, 46),
+	Card = Color3.fromRGB(38, 38, 50),
+	Card2 = Color3.fromRGB(46, 46, 60),
+
+	Text = Color3.fromRGB(245, 245, 255),
+	SubText = Color3.fromRGB(185, 185, 210),
+	Muted = Color3.fromRGB(130, 130, 155),
+
+	Accent = Color3.fromRGB(105, 125, 255),
+	Green = Color3.fromRGB(50, 200, 120),
+	GreenHover = Color3.fromRGB(70, 225, 145),
+	Red = Color3.fromRGB(255, 95, 95),
+
+	Button = Color3.fromRGB(48, 48, 62),
+	ButtonHover = Color3.fromRGB(58, 58, 76),
+	ButtonActive = Color3.fromRGB(85, 110, 255),
+}
+
+local TWEEN_FAST = TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local TWEEN_MED = TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local TWEEN_SLOW = TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+
+--// ============================================================
+--// STATE
+--// ============================================================
+
+local isCollapsed = false
+local isAbove = true
+local selectedColor = Color3.fromRGB(255, 70, 70)
+local selectedFont = Enum.Font.Gotham
+local selectedFontFace = "Gotham"
+local selectedStrokeEnabled = false
+
+local colorIndex = 1
+local fontIndex = 1
+
+-- Bigger so the bottom is not clipped.
+local NORMAL_SIZE = UDim2.fromOffset(450, 455)
+local COLLAPSED_SIZE = UDim2.fromOffset(450, 48)
+
+--// ============================================================
+--// DATA
+--// ============================================================
+
+local colorPresets = {
+	{ color = Color3.fromRGB(255, 70, 70), name = "Red" },
+	{ color = Color3.fromRGB(70, 255, 120), name = "Green" },
+	{ color = Color3.fromRGB(80, 140, 255), name = "Blue" },
+	{ color = Color3.fromRGB(255, 230, 70), name = "Yellow" },
+	{ color = Color3.fromRGB(255, 80, 255), name = "Magenta" },
+	{ color = Color3.fromRGB(70, 255, 255), name = "Cyan" },
+	{ color = Color3.fromRGB(255, 145, 55), name = "Orange" },
+	{ color = Color3.fromRGB(160, 90, 255), name = "Purple" },
+	{ color = Color3.fromRGB(255, 145, 190), name = "Pink" },
+	{ color = Color3.fromRGB(255, 255, 255), name = "White" },
+	{ color = Color3.fromRGB(120, 255, 190), name = "Mint" },
+	{ color = Color3.fromRGB(255, 190, 110), name = "Gold" },
+}
+
+-- IMPORTANT:
+-- "font" controls the local GUI preview/input font.
+-- "face" is sent through RichText as <font face="...">.
+-- If the receiver's TextLabel has RichText enabled, this is the part that makes the sent text font change.
+local fontPresets = {
+	{ font = Enum.Font.Gotham, name = "Gotham", face = "Gotham" },
+	{ font = Enum.Font.GothamMedium, name = "Gotham Medium", face = "GothamMedium" },
+	{ font = Enum.Font.GothamBold, name = "Gotham Bold", face = "GothamBold" },
+	{ font = Enum.Font.GothamBlack, name = "Gotham Black", face = "GothamBlack" },
+
+	{ font = Enum.Font.SourceSans, name = "SourceSans", face = "SourceSans" },
+	{ font = Enum.Font.SourceSansBold, name = "SourceSans Bold", face = "SourceSansBold" },
+	{ font = Enum.Font.SourceSansItalic, name = "SourceSans Italic", face = "SourceSansItalic" },
+
+	{ font = Enum.Font.Arial, name = "Arial", face = "Arial" },
+	{ font = Enum.Font.ArialBold, name = "Arial Bold", face = "ArialBold" },
+
+	{ font = Enum.Font.Fantasy, name = "Fantasy", face = "Fantasy" },
+	{ font = Enum.Font.Cartoon, name = "Cartoon", face = "Cartoon" },
+	{ font = Enum.Font.SciFi, name = "SciFi", face = "SciFi" },
+	{ font = Enum.Font.Highway, name = "Highway", face = "Highway" },
+	{ font = Enum.Font.Code, name = "Code", face = "Code" },
+	{ font = Enum.Font.Arcade, name = "Arcade", face = "Arcade" },
+}
+
+--// ============================================================
+--// HELPERS
+--// ============================================================
+
+local function tween(object, info, props)
+	local t = TweenService:Create(object, info, props)
+	t:Play()
+	return t
+end
+
+local function addCorner(parent, radius)
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, radius or 8)
+	corner.Parent = parent
+	return corner
+end
+
+local function addStroke(parent, color, transparency, thickness)
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = color or Color3.fromRGB(255, 255, 255)
+	stroke.Transparency = transparency or 0.88
+	stroke.Thickness = thickness or 1
+	stroke.Parent = parent
+	return stroke
+end
+
+local function getBrightness(color)
+	return (color.R * 0.299) + (color.G * 0.587) + (color.B * 0.114)
+end
+
+local function getReadableTextColor(bg)
+	if getBrightness(bg) > 0.55 then
+		return Color3.fromRGB(18, 18, 24)
+	end
+
+	return Color3.fromRGB(255, 255, 255)
+end
+
+local function escapeRichText(text)
+	text = tostring(text or "")
+
+	text = text:gsub("&", "&amp;")
+	text = text:gsub("<", "&lt;")
+	text = text:gsub(">", "&gt;")
+	text = text:gsub("\"", "&quot;")
+	text = text:gsub("'", "&apos;")
+
+	return text
+end
+
+local function colorToHex(color)
+	return string.format(
+		"#%02X%02X%02X",
+		math.floor(color.R * 255 + 0.5),
+		math.floor(color.G * 255 + 0.5),
+		math.floor(color.B * 255 + 0.5)
+	)
+end
+
+local function trim(s)
+	s = tostring(s or "")
+	return s:match("^%s*(.-)%s*$")
+end
+
+local function lighten(color, amount)
+	return color:Lerp(Color3.fromRGB(255, 255, 255), amount or 0.08)
+end
+
+--// ============================================================
+--// GUI CREATION
+--// ============================================================
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "RemoteSenderGUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
+
+-- Shadow is outside the clipped main frame, so it will not get cut.
+local Shadow = Instance.new("ImageLabel")
+Shadow.Name = "Shadow"
+Shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+Shadow.Position = UDim2.new(0.5, 0, 0.5, 10)
+Shadow.Size = UDim2.fromOffset(500, 505)
+Shadow.BackgroundTransparency = 1
+Shadow.Image = "rbxassetid://1316045217"
+Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+Shadow.ImageTransparency = 0.45
+Shadow.ScaleType = Enum.ScaleType.Slice
+Shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+Shadow.ZIndex = 0
+Shadow.Parent = ScreenGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = NORMAL_SIZE
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -227)
+MainFrame.BackgroundColor3 = THEME.Panel
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+MainFrame.Active = true
+MainFrame.ZIndex = 2
+MainFrame.Parent = ScreenGui
+
+addCorner(MainFrame, 14)
+addStroke(MainFrame, Color3.fromRGB(255, 255, 255), 0.88, 1)
+
+local HeaderFrame = Instance.new("Frame")
+HeaderFrame.Name = "Header"
+HeaderFrame.Size = UDim2.new(1, 0, 0, 48)
+HeaderFrame.Position = UDim2.fromOffset(0, 0)
+HeaderFrame.BackgroundColor3 = THEME.Header
+HeaderFrame.BorderSizePixel = 0
+HeaderFrame.ZIndex = 3
+HeaderFrame.Parent = MainFrame
+
+addCorner(HeaderFrame, 14)
+
+local HeaderMask = Instance.new("Frame")
+HeaderMask.Name = "HeaderMask"
+HeaderMask.Size = UDim2.new(1, 0, 0, 18)
+HeaderMask.Position = UDim2.new(0, 0, 1, -18)
+HeaderMask.BackgroundColor3 = THEME.Header
+HeaderMask.BorderSizePixel = 0
+HeaderMask.ZIndex = 3
+HeaderMask.Parent = HeaderFrame
+
+local AccentBar = Instance.new("Frame")
+AccentBar.Name = "AccentBar"
+AccentBar.Size = UDim2.new(0, 4, 1, -18)
+AccentBar.Position = UDim2.fromOffset(12, 9)
+AccentBar.BackgroundColor3 = THEME.Accent
+AccentBar.BorderSizePixel = 0
+AccentBar.ZIndex = 4
+AccentBar.Parent = HeaderFrame
+addCorner(AccentBar, 3)
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Name = "Title"
+TitleLabel.Size = UDim2.new(1, -125, 0, 25)
+TitleLabel.Position = UDim2.fromOffset(26, 4)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "Colorful Messenger"
+TitleLabel.TextColor3 = THEME.Text
+TitleLabel.TextSize = 16
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.ZIndex = 4
+TitleLabel.Parent = HeaderFrame
+
+local SubTitleLabel = Instance.new("TextLabel")
+SubTitleLabel.Name = "Subtitle"
+SubTitleLabel.Size = UDim2.new(1, -125, 0, 14)
+SubTitleLabel.Position = UDim2.fromOffset(27, 28)
+SubTitleLabel.BackgroundTransparency = 1
+SubTitleLabel.Text = "styled text sender"
+SubTitleLabel.TextColor3 = THEME.Muted
+SubTitleLabel.TextSize = 10
+SubTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+SubTitleLabel.Font = Enum.Font.Gotham
+SubTitleLabel.ZIndex = 4
+SubTitleLabel.Parent = HeaderFrame
+
+local function makeHeaderButton(name, text, xOffset, color)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = UDim2.fromOffset(32, 32)
+	btn.Position = UDim2.new(1, xOffset, 0, 8)
+	btn.BackgroundColor3 = Color3.fromRGB(45, 45, 58)
+	btn.BackgroundTransparency = 0.12
+	btn.BorderSizePixel = 0
+	btn.Text = text
+	btn.TextColor3 = color or THEME.Text
+	btn.TextSize = 15
+	btn.Font = Enum.Font.GothamBold
+	btn.AutoButtonColor = false
+	btn.ZIndex = 5
+	btn.Parent = HeaderFrame
+
+	addCorner(btn, 8)
+	addStroke(btn, Color3.fromRGB(255, 255, 255), 0.92, 1)
+
+	local base = btn.BackgroundColor3
+
+	btn.MouseEnter:Connect(function()
+		tween(btn, TWEEN_FAST, {
+			BackgroundColor3 = lighten(base, 0.10),
+			BackgroundTransparency = 0,
+		})
+	end)
+
+	btn.MouseLeave:Connect(function()
+		tween(btn, TWEEN_FAST, {
+			BackgroundColor3 = base,
+			BackgroundTransparency = 0.12,
+		})
+	end)
+
+	return btn
+end
+
+local CollapseButton = makeHeaderButton("Collapse", "—", -78, THEME.SubText)
+local CloseButton = makeHeaderButton("Close", "×", -40, THEME.Red)
+
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Name = "Content"
+ContentFrame.Size = UDim2.new(1, -28, 1, -72)
+ContentFrame.Position = UDim2.fromOffset(14, 58)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.ZIndex = 3
+ContentFrame.Parent = MainFrame
+
+--// ============================================================
+--// CONTENT HELPERS
+--// ============================================================
+
+local buttonBaseColors = {}
+local buttonHovering = {}
+
+local function setButtonBase(button, color, textColor)
+	buttonBaseColors[button] = color
+	button.BackgroundColor3 = color
+
+	if textColor then
+		button.TextColor3 = textColor
+	end
+end
+
+local function applyButtonVisual(button)
+	local base = buttonBaseColors[button] or button.BackgroundColor3
+
+	if buttonHovering[button] then
+		tween(button, TWEEN_FAST, {
+			BackgroundColor3 = lighten(base, 0.08),
+		})
+	else
+		tween(button, TWEEN_FAST, {
+			BackgroundColor3 = base,
+		})
+	end
+end
+
+local function makeTextLabel(name, text, pos, size)
+	local label = Instance.new("TextLabel")
+	label.Name = name
+	label.Size = size
+	label.Position = pos
+	label.BackgroundTransparency = 1
+	label.Text = text
+	label.TextColor3 = THEME.SubText
+	label.TextSize = 12
+	label.Font = Enum.Font.GothamMedium
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.TextYAlignment = Enum.TextYAlignment.Center
+	label.ZIndex = 4
+	label.Parent = ContentFrame
+	return label
+end
+
+local function makeButton(name, text, pos, size, bgColor, textColor)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = size
+	btn.Position = pos
+	btn.BackgroundColor3 = bgColor or THEME.Button
+	btn.BorderSizePixel = 0
+	btn.Text = text
+	btn.TextColor3 = textColor or THEME.Text
+	btn.TextSize = 13
+	btn.Font = Enum.Font.GothamBold
+	btn.AutoButtonColor = false
+	btn.TextTruncate = Enum.TextTruncate.AtEnd
+	btn.ZIndex = 4
+	btn.Parent = ContentFrame
+
+	addCorner(btn, 8)
+	addStroke(btn, Color3.fromRGB(255, 255, 255), 0.93, 1)
+
+	buttonBaseColors[btn] = bgColor or THEME.Button
+	buttonHovering[btn] = false
+
+	-- No size/position press tween.
+	-- That was the "shake" when flipping colors/fonts.
+	btn.MouseEnter:Connect(function()
+		buttonHovering[btn] = true
+		applyButtonVisual(btn)
+	end)
+
+	btn.MouseLeave:Connect(function()
+		buttonHovering[btn] = false
+		applyButtonVisual(btn)
+	end)
+
+	btn.MouseButton1Down:Connect(function()
+		local base = buttonBaseColors[btn] or btn.BackgroundColor3
+		tween(btn, TWEEN_FAST, {
+			BackgroundColor3 = base:Lerp(Color3.fromRGB(0, 0, 0), 0.08),
+		})
+	end)
+
+	btn.MouseButton1Up:Connect(function()
+		applyButtonVisual(btn)
+	end)
+
+	return btn
+end
+
+--// ============================================================
+--// MESSAGE INPUT
+--// ============================================================
+
+makeTextLabel(
+	"MessageLabel",
+	"Message",
+	UDim2.fromOffset(2, 0),
+	UDim2.fromOffset(160, 20)
+)
+
+local MessageBox = Instance.new("TextBox")
+MessageBox.Name = "MessageBox"
+MessageBox.Size = UDim2.new(1, 0, 0, 44)
+MessageBox.Position = UDim2.fromOffset(0, 23)
+MessageBox.BackgroundColor3 = THEME.Card
+MessageBox.BorderSizePixel = 0
+MessageBox.TextColor3 = THEME.Text
+MessageBox.PlaceholderText = "Enter message..."
+MessageBox.PlaceholderColor3 = THEME.Muted
+MessageBox.Font = selectedFont
+MessageBox.TextSize = 15
+MessageBox.ClearTextOnFocus = false
+MessageBox.RichText = false
+MessageBox.TextXAlignment = Enum.TextXAlignment.Left
+MessageBox.Text = ""
+MessageBox.ZIndex = 4
+MessageBox.Parent = ContentFrame
+
+addCorner(MessageBox, 9)
+addStroke(MessageBox, Color3.fromRGB(255, 255, 255), 0.92, 1)
+
+local MessagePadding = Instance.new("UIPadding")
+MessagePadding.PaddingLeft = UDim.new(0, 12)
+MessagePadding.PaddingRight = UDim.new(0, 12)
+MessagePadding.Parent = MessageBox
+
+--// ============================================================
+--// FONT / COLOR ROW
+--// ============================================================
+
+makeTextLabel(
+	"StyleLabel",
+	"Style",
+	UDim2.fromOffset(2, 80),
+	UDim2.fromOffset(160, 20)
+)
+
+local FontButton = makeButton(
+	"FontButton",
+	"Font: Gotham",
+	UDim2.fromOffset(0, 104),
+	UDim2.new(0.5, -6, 0, 38),
+	THEME.Button,
+	THEME.SubText
+)
+
+local ColorButton = makeButton(
+	"ColorButton",
+	"Red",
+	UDim2.new(0.5, 6, 0, 104),
+	UDim2.new(0.5, -6, 0, 38),
+	selectedColor,
+	getReadableTextColor(selectedColor)
+)
+
+--// ============================================================
+--// POSITION / EXTRAS ROW
+--// ============================================================
+
+makeTextLabel(
+	"PositionLabel",
+	"Position",
+	UDim2.fromOffset(2, 154),
+	UDim2.fromOffset(160, 20)
+)
+
+local AboveButton = makeButton(
+	"AboveButton",
+	"Above",
+	UDim2.fromOffset(0, 178),
+	UDim2.new(0.33, -6, 0, 38),
+	THEME.ButtonActive,
+	THEME.Text
+)
+
+local BelowButton = makeButton(
+	"BelowButton",
+	"Below",
+	UDim2.new(0.33, 3, 0, 178),
+	UDim2.new(0.33, -6, 0, 38),
+	THEME.Button,
+	THEME.SubText
+)
+
+local StrokeButton = makeButton(
+	"StrokeButton",
+	"Stroke: Off",
+	UDim2.new(0.66, 6, 0, 178),
+	UDim2.new(0.34, -6, 0, 38),
+	THEME.Button,
+	THEME.SubText
+)
+
+--// ============================================================
+--// PREVIEW
+--// ============================================================
+
+makeTextLabel(
+	"PreviewLabel",
+	"Preview",
+	UDim2.fromOffset(2, 228),
+	UDim2.fromOffset(160, 20)
+)
+
+local PreviewFrame = Instance.new("Frame")
+PreviewFrame.Name = "PreviewFrame"
+PreviewFrame.Size = UDim2.new(1, 0, 0, 54)
+PreviewFrame.Position = UDim2.fromOffset(0, 252)
+PreviewFrame.BackgroundColor3 = THEME.Card
+PreviewFrame.BorderSizePixel = 0
+PreviewFrame.ZIndex = 4
+PreviewFrame.Parent = ContentFrame
+
+addCorner(PreviewFrame, 9)
+addStroke(PreviewFrame, Color3.fromRGB(255, 255, 255), 0.93, 1)
+
+local PreviewText = Instance.new("TextLabel")
+PreviewText.Name = "PreviewText"
+PreviewText.Size = UDim2.new(1, -24, 1, 0)
+PreviewText.Position = UDim2.fromOffset(12, 0)
+PreviewText.BackgroundTransparency = 1
+PreviewText.Text = "Your styled message appears here"
+PreviewText.TextColor3 = selectedColor
+PreviewText.TextSize = 16
+PreviewText.Font = selectedFont
+PreviewText.RichText = true
+PreviewText.TextXAlignment = Enum.TextXAlignment.Center
+PreviewText.TextYAlignment = Enum.TextYAlignment.Center
+PreviewText.TextTruncate = Enum.TextTruncate.AtEnd
+PreviewText.ZIndex = 5
+PreviewText.Parent = PreviewFrame
+
+local PreviewStroke = Instance.new("UIStroke")
+PreviewStroke.Color = Color3.fromRGB(0, 0, 0)
+PreviewStroke.Transparency = 1
+PreviewStroke.Thickness = 1.5
+PreviewStroke.Parent = PreviewText
+
+--// ============================================================
+--// SEND / STATUS
+--// ============================================================
+
+local SendButton = makeButton(
+	"SendButton",
+	"Send",
+	UDim2.fromOffset(0, 324),
+	UDim2.new(1, 0, 0, 44),
+	THEME.Green,
+	Color3.fromRGB(255, 255, 255)
+)
+
+SendButton.TextSize = 15
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Name = "Status"
+StatusLabel.Size = UDim2.new(1, -24, 0, 24)
+StatusLabel.Position = UDim2.new(0, 12, 1, -31)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "● Ready"
+StatusLabel.TextColor3 = Color3.fromRGB(110, 255, 140)
+StatusLabel.TextSize = 12
+StatusLabel.Font = Enum.Font.GothamMedium
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Center
+StatusLabel.ZIndex = 4
+StatusLabel.Parent = MainFrame
+
+local function setStatus(text, color)
+	StatusLabel.Text = text
+	StatusLabel.TextColor3 = color or THEME.SubText
+end
+
+--// ============================================================
+--// UPDATE UI
+--// ============================================================
+
+local function updatePreview()
+	local raw = trim(MessageBox.Text)
+
+	if raw == "" then
+		PreviewText.Text = "Your styled message appears here"
+		PreviewText.TextColor3 = selectedColor
+		PreviewText.Font = selectedFont
+		PreviewStroke.Transparency = 1
 		return
 	end
-	
-	-- Send with AHT value
+
+	PreviewText.Text = escapeRichText(raw)
+	PreviewText.TextColor3 = selectedColor
+	PreviewText.Font = selectedFont
+	PreviewStroke.Transparency = selectedStrokeEnabled and 0.2 or 1
+end
+
+local function updateColorButton()
+	local presetData = colorPresets[colorIndex]
+	selectedColor = presetData.color
+
+	ColorButton.Text = presetData.name
+	ColorButton.TextColor3 = getReadableTextColor(selectedColor)
+	setButtonBase(ColorButton, selectedColor, getReadableTextColor(selectedColor))
+
+	PreviewText.TextColor3 = selectedColor
+	updatePreview()
+	applyButtonVisual(ColorButton)
+end
+
+local function updateFontButton()
+	local presetData = fontPresets[fontIndex]
+
+	selectedFont = presetData.font
+	selectedFontFace = presetData.face
+
+	FontButton.Text = "Font: " .. presetData.name
+
+	-- Make the button itself use the chosen font too.
+	-- This makes it visibly obvious that the font changed.
+	FontButton.Font = selectedFont
+	MessageBox.Font = selectedFont
+	PreviewText.Font = selectedFont
+
+	updatePreview()
+end
+
+local function updatePositionButtons()
+	if isAbove then
+		setButtonBase(AboveButton, THEME.ButtonActive, THEME.Text)
+		setButtonBase(BelowButton, THEME.Button, THEME.SubText)
+	else
+		setButtonBase(BelowButton, THEME.ButtonActive, THEME.Text)
+		setButtonBase(AboveButton, THEME.Button, THEME.SubText)
+	end
+
+	applyButtonVisual(AboveButton)
+	applyButtonVisual(BelowButton)
+end
+
+local function updateStrokeButton()
+	if selectedStrokeEnabled then
+		StrokeButton.Text = "Stroke: On"
+		setButtonBase(StrokeButton, THEME.ButtonActive, THEME.Text)
+	else
+		StrokeButton.Text = "Stroke: Off"
+		setButtonBase(StrokeButton, THEME.Button, THEME.SubText)
+	end
+
+	applyButtonVisual(StrokeButton)
+	updatePreview()
+end
+
+local function getFormattedMessage(rawText)
+	local clean = escapeRichText(rawText)
+	local hex = colorToHex(selectedColor)
+
+	-- THIS is the actual sent font change.
+	-- The previous script only changed the GUI preview font.
+	-- This one sends face="" in RichText.
+	local formatted = string.format(
+		"<font color=\"%s\" face=\"%s\">%s</font>",
+		hex,
+		selectedFontFace,
+		clean
+	)
+
+	if selectedStrokeEnabled then
+		formatted = "<stroke color=\"#000000\" thickness=\"1.5\" transparency=\"0.2\">" .. formatted .. "</stroke>"
+	end
+
+	return formatted
+end
+
+--// ============================================================
+--// SEND FUNCTION
+--// ============================================================
+
+local function sendMessageToServer(formattedMessage, rawMessage, options)
 	fireServerFunction("Send_Above_Text", {
-		message,
+		formattedMessage,
 		"AC",
-		{AHT = isAbove}
+		{
+			AHT = options.Above,
+
+			-- Extra metadata. If the server ignores it, harmless.
+			Font = options.FontFace,
+			FontName = options.FontName,
+			Color = options.ColorHex,
+			Stroke = options.Stroke,
+		}
 	})
-	
-	StatusLabel.Text = "✓ Sent!"
-	StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-	
-	-- Button feedback
-	TweenService:Create(SendButton, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(100, 255, 150)}):Play()
-	task.wait(0.15)
-	TweenService:Create(SendButton, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(50, 200, 120)}):Play()
+
+	return true
+end
+
+local sending = false
+
+local function sendCurrentMessage()
+	if sending then
+		return
+	end
+
+	local raw = trim(MessageBox.Text)
+
+	if raw == "" then
+		setStatus("✗ Enter a message", THEME.Red)
+
+		tween(MessageBox, TWEEN_FAST, {
+			BackgroundColor3 = Color3.fromRGB(58, 35, 42),
+		})
+
+		task.delay(0.18, function()
+			if MessageBox and MessageBox.Parent then
+				tween(MessageBox, TWEEN_FAST, {
+					BackgroundColor3 = THEME.Card,
+				})
+			end
+		end)
+
+		return
+	end
+
+	sending = true
+
+	local formatted = getFormattedMessage(raw)
+	local fontName = fontPresets[fontIndex].name
+
+	local ok, result = pcall(function()
+		return sendMessageToServer(formatted, raw, {
+			Above = isAbove,
+			Font = selectedFont,
+			FontFace = selectedFontFace,
+			FontName = fontName,
+			Color = selectedColor,
+			ColorHex = colorToHex(selectedColor),
+			Stroke = selectedStrokeEnabled,
+		})
+	end)
+
+	if not ok or result == false then
+		setStatus("✗ Failed to send", THEME.Red)
+		warn("Send failed:", result)
+		sending = false
+		return
+	end
+
+	setStatus("✓ Sent", Color3.fromRGB(110, 255, 140))
+
+	local originalText = SendButton.Text
+	SendButton.Text = "Sent"
+	setButtonBase(SendButton, Color3.fromRGB(95, 240, 155), Color3.fromRGB(255, 255, 255))
+	applyButtonVisual(SendButton)
+
+	task.delay(0.30, function()
+		if SendButton and SendButton.Parent then
+			SendButton.Text = originalText
+			setButtonBase(SendButton, THEME.Green, Color3.fromRGB(255, 255, 255))
+			applyButtonVisual(SendButton)
+		end
+
+		sending = false
+	end)
+end
+
+--// ============================================================
+--// BUTTON EVENTS
+--// ============================================================
+
+FontButton.MouseButton1Click:Connect(function()
+	fontIndex += 1
+	if fontIndex > #fontPresets then
+		fontIndex = 1
+	end
+
+	updateFontButton()
+	setStatus("● Font: " .. fontPresets[fontIndex].name, THEME.SubText)
 end)
 
--- Send button hover
+ColorButton.MouseButton1Click:Connect(function()
+	colorIndex += 1
+	if colorIndex > #colorPresets then
+		colorIndex = 1
+	end
+
+	updateColorButton()
+	setStatus("● Color: " .. colorPresets[colorIndex].name, THEME.SubText)
+end)
+
+AboveButton.MouseButton1Click:Connect(function()
+	isAbove = true
+	updatePositionButtons()
+	setStatus("● Position: Above", THEME.SubText)
+end)
+
+BelowButton.MouseButton1Click:Connect(function()
+	isAbove = false
+	updatePositionButtons()
+	setStatus("● Position: Below", THEME.SubText)
+end)
+
+StrokeButton.MouseButton1Click:Connect(function()
+	selectedStrokeEnabled = not selectedStrokeEnabled
+	updateStrokeButton()
+	setStatus(selectedStrokeEnabled and "● Stroke enabled" or "● Stroke disabled", THEME.SubText)
+end)
+
+SendButton.MouseButton1Click:Connect(function()
+	sendCurrentMessage()
+end)
+
 SendButton.MouseEnter:Connect(function()
-	TweenService:Create(SendButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(70, 220, 140)}):Play()
+	buttonHovering[SendButton] = true
+	tween(SendButton, TWEEN_FAST, {
+		BackgroundColor3 = THEME.GreenHover,
+	})
 end)
 
 SendButton.MouseLeave:Connect(function()
-	TweenService:Create(SendButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 200, 120)}):Play()
+	buttonHovering[SendButton] = false
+	tween(SendButton, TWEEN_FAST, {
+		BackgroundColor3 = buttonBaseColors[SendButton] or THEME.Green,
+	})
 end)
 
--- Above/Below button hover
-AboveButton.MouseEnter:Connect(function()
-	if AboveButton.BackgroundColor3 == Color3.fromRGB(45, 45, 55) then
-		TweenService:Create(AboveButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(55, 55, 65)}):Play()
-	end
-end)
-
-AboveButton.MouseLeave:Connect(function()
-	if AboveButton.BackgroundColor3 ~= Color3.fromRGB(60, 120, 255) then
-		TweenService:Create(AboveButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 55)}):Play()
-	end
-end)
-
-BelowButton.MouseEnter:Connect(function()
-	if BelowButton.BackgroundColor3 == Color3.fromRGB(45, 45, 55) then
-		TweenService:Create(BelowButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(55, 55, 65)}):Play()
-	end
-end)
-
-BelowButton.MouseLeave:Connect(function()
-	if BelowButton.BackgroundColor3 ~= Color3.fromRGB(60, 120, 255) then
-		TweenService:Create(BelowButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 55)}):Play()
-	end
-end)
-
--- Collapse/Expand
 CollapseButton.MouseButton1Click:Connect(function()
 	isCollapsed = not isCollapsed
-	
+
 	if isCollapsed then
-		TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-			Size = UDim2.new(0, 340, 0, 35)
-		}):Play()
-		ContentFrame.Visible = false
-		StatusLabel.Visible = false
-		CollapseButton.Text = "▼"
+		CollapseButton.Text = "+"
+		tween(MainFrame, TWEEN_SLOW, {
+			Size = COLLAPSED_SIZE,
+		})
+		tween(Shadow, TWEEN_SLOW, {
+			Size = UDim2.fromOffset(500, 98),
+		})
+		tween(StatusLabel, TWEEN_FAST, {
+			TextTransparency = 1,
+		})
 	else
-		TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-			Size = UDim2.new(0, 340, 0, 170)
-		}):Play()
-		ContentFrame.Visible = true
-		StatusLabel.Visible = true
-		CollapseButton.Text = "▲"
+		CollapseButton.Text = "—"
+		tween(MainFrame, TWEEN_SLOW, {
+			Size = NORMAL_SIZE,
+		})
+		tween(Shadow, TWEEN_SLOW, {
+			Size = UDim2.fromOffset(500, 505),
+		})
+		task.delay(0.10, function()
+			if StatusLabel and StatusLabel.Parent then
+				tween(StatusLabel, TWEEN_FAST, {
+					TextTransparency = 0,
+				})
+			end
+		end)
 	end
 end)
 
--- Close button
 CloseButton.MouseButton1Click:Connect(function()
-	TweenService:Create(MainFrame, TweenInfo.new(0.25), {
-		BackgroundTransparency = 1
-	}):Play()
-	task.wait(0.25)
-	ScreenGui:Destroy()
-end)
+	tween(MainFrame, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		Size = UDim2.fromOffset(450, 48),
+		BackgroundTransparency = 1,
+	})
 
--- Enter key to send
-MessageBox.FocusLost:Connect(function(enterPressed)
-	if enterPressed and MessageBox.Text ~= "" then
-		SendButton:Activate()
+	tween(Shadow, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		ImageTransparency = 1,
+	})
+
+	for _, obj in ipairs(MainFrame:GetDescendants()) do
+		if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+			tween(obj, TweenInfo.new(0.14), {
+				TextTransparency = 1,
+				BackgroundTransparency = 1,
+			})
+		elseif obj:IsA("Frame") then
+			tween(obj, TweenInfo.new(0.14), {
+				BackgroundTransparency = 1,
+			})
+		elseif obj:IsA("UIStroke") then
+			tween(obj, TweenInfo.new(0.14), {
+				Transparency = 1,
+			})
+		end
 	end
+
+	task.delay(0.23, function()
+		if ScreenGui then
+			ScreenGui:Destroy()
+		end
+	end)
 end)
 
--- Auto-reset status
+MessageBox:GetPropertyChangedSignal("Text"):Connect(function()
+	updatePreview()
+end)
+
 MessageBox.Focused:Connect(function()
-	if StatusLabel.Text:find("✗") or StatusLabel.Text:find("✓") then
-		StatusLabel.Text = "● Ready"
-		StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+	tween(MessageBox, TWEEN_FAST, {
+		BackgroundColor3 = THEME.Card2,
+	})
+	setStatus("● Typing...", THEME.SubText)
+end)
+
+MessageBox.FocusLost:Connect(function(enterPressed)
+	tween(MessageBox, TWEEN_FAST, {
+		BackgroundColor3 = THEME.Card,
+	})
+
+	if enterPressed then
+		sendCurrentMessage()
+	else
+		setStatus("● Ready", Color3.fromRGB(110, 255, 140))
 	end
 end)
+
+--// ============================================================
+--// CUSTOM DRAGGING
+--// ============================================================
+
+local dragging = false
+local dragStart = nil
+local startPos = nil
+local shadowStartPos = nil
+
+local function updateDrag(input)
+	local delta = input.Position - dragStart
+
+	local newPos = UDim2.new(
+		startPos.X.Scale,
+		startPos.X.Offset + delta.X,
+		startPos.Y.Scale,
+		startPos.Y.Offset + delta.Y
+	)
+
+	MainFrame.Position = newPos
+
+	Shadow.Position = UDim2.new(
+		shadowStartPos.X.Scale,
+		shadowStartPos.X.Offset + delta.X,
+		shadowStartPos.Y.Scale,
+		shadowStartPos.Y.Offset + delta.Y
+	)
+end
+
+HeaderFrame.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = MainFrame.Position
+		shadowStartPos = Shadow.Position
+
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if not dragging then
+		return
+	end
+
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		updateDrag(input)
+	end
+end)
+
+--// ============================================================
+--// INITIALIZE
+--// ============================================================
+
+buttonBaseColors[SendButton] = THEME.Green
+buttonBaseColors[AboveButton] = THEME.ButtonActive
+buttonBaseColors[BelowButton] = THEME.Button
+buttonBaseColors[StrokeButton] = THEME.Button
+buttonBaseColors[FontButton] = THEME.Button
+buttonBaseColors[ColorButton] = selectedColor
+
+updateColorButton()
+updateFontButton()
+updatePositionButtons()
+updateStrokeButton()
+updatePreview()
+setStatus("● Ready", Color3.fromRGB(110, 255, 140))
+
+-- Pop-in animation.
+MainFrame.Size = COLLAPSED_SIZE
+MainFrame.BackgroundTransparency = 0.08
+Shadow.Size = UDim2.fromOffset(500, 98)
+
+tween(MainFrame, TWEEN_SLOW, {
+	Size = NORMAL_SIZE,
+	BackgroundTransparency = 0,
+})
+
+tween(Shadow, TWEEN_SLOW, {
+	Size = UDim2.fromOffset(500, 505),
+	ImageTransparency = 0.45,
+})
+
