@@ -1530,6 +1530,9 @@ setDropdown(false)
 updateStealAllButtonState()
 renderWhitelist()
 
+-- Start minimized
+setMinimized(true)
+
 print("Magic Viewer loaded.")
 print("MagicsIR:", MagicsIR:GetFullName())
 print("Base return target: workspace.World.Map.Bases.Base#.ColectZone.ColeectZone")
