@@ -472,6 +472,10 @@ local Main = New("Frame", {
 corner(Main, 12)
 stroke(Main, Color3.fromRGB(75, 75, 90), 1, 0.25)
 
+local GuiScale = New("UIScale", {
+	Scale = 0.5,
+}, Main)
+
 local TitleBar = New("Frame", {
 	Name = "TitleBar",
 	Size = UDim2.new(1, 0, 0, 44),
