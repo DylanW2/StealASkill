@@ -81,6 +81,7 @@ local dropdownOpen = false
 local sellingAll = false
 local stealingAll = false
 local protectingAll = false
+local minimized = false
 
 local oldGui = PlayerGui:FindFirstChild("MagicViewer")
 if oldGui then
@@ -461,7 +462,8 @@ local ScreenGui = New("ScreenGui", {
 local Main = New("Frame", {
 	Name = "Main",
 	Size = UDim2.fromOffset(780, 610),
-	Position = UDim2.new(0.5, -390, 0.5, -305),
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -25),
 	BackgroundColor3 = Color3.fromRGB(24, 24, 28),
 	BorderSizePixel = 0,
 	Active = true,
@@ -491,7 +493,7 @@ New("Frame", {
 New("TextLabel", {
 	BackgroundTransparency = 1,
 	Position = UDim2.fromOffset(14, 0),
-	Size = UDim2.new(1, -100, 1, 0),
+	Size = UDim2.new(1, -150, 1, 0),
 	Font = Enum.Font.GothamBold,
 	TextSize = 16,
 	TextColor3 = Color3.fromRGB(245, 245, 245),
@@ -512,6 +514,21 @@ local CloseButton = New("TextButton", {
 }, TitleBar)
 
 corner(CloseButton, 8)
+
+local MinimizeButton = New("TextButton", {
+	AnchorPoint = Vector2.new(1, 0.5),
+	Position = UDim2.new(1, -48, 0.5, 0),
+	Size = UDim2.fromOffset(32, 28),
+	BackgroundColor3 = Color3.fromRGB(48, 48, 60),
+	BorderSizePixel = 0,
+	Font = Enum.Font.GothamBold,
+	TextSize = 16,
+	TextColor3 = Color3.fromRGB(230, 230, 240),
+	Text = "_",
+	AutoButtonColor = false,
+}, TitleBar)
+
+corner(MinimizeButton, 8)
 
 local Content = New("Frame", {
 	BackgroundTransparency = 1,
@@ -773,6 +790,29 @@ New("UIGridLayout", {
 	CellPadding = UDim2.fromOffset(8, 8),
 	CellSize = UDim2.fromOffset(165, 38),
 }, WhitelistList)
+
+local MAIN_FULL_SIZE = UDim2.fromOffset(780, 610)
+local MAIN_MINIMIZED_SIZE = UDim2.fromOffset(780, 44)
+
+local function setMinimized(state)
+	minimized = state
+
+	Content.Visible = not minimized
+	Dropdown.Visible = false
+	dropdownOpen = false
+
+	if WhitelistPopup then
+		WhitelistPopup.Visible = false
+	end
+
+	if minimized then
+		Main.Size = MAIN_MINIMIZED_SIZE
+		MinimizeButton.Text = "+"
+	else
+		Main.Size = MAIN_FULL_SIZE
+		MinimizeButton.Text = "_"
+	end
+end
 
 local updateResults
 local updateStealAllButtonState
@@ -1351,6 +1391,18 @@ do
 		end
 	end)
 end
+
+MinimizeButton.MouseButton1Click:Connect(function()
+	setMinimized(not minimized)
+end)
+
+MinimizeButton.MouseEnter:Connect(function()
+	MinimizeButton.BackgroundColor3 = Color3.fromRGB(65, 65, 82)
+end)
+
+MinimizeButton.MouseLeave:Connect(function()
+	MinimizeButton.BackgroundColor3 = Color3.fromRGB(48, 48, 60)
+end)
 
 PlayerButton.MouseButton1Click:Connect(function()
 	updateDropdown()
