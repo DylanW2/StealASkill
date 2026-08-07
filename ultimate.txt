@@ -496,7 +496,7 @@ New("TextLabel", {
 	TextSize = 16,
 	TextColor3 = Color3.fromRGB(245, 245, 245),
 	TextXAlignment = Enum.TextXAlignment.Left,
-	Text = "Magic Viewer",
+	Text = "By BonsiBaddies (@AMFEQONDNGr",
 }, TitleBar)
 
 local CloseButton = New("TextButton", {
