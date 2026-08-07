@@ -81,7 +81,7 @@ local dropdownOpen = false
 local sellingAll = false
 local stealingAll = false
 local protectingAll = false
-local minimized = false
+local minimized = true
 
 local oldGui = PlayerGui:FindFirstChild("MagicViewer")
 if oldGui then
