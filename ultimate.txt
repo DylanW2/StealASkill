@@ -1,0 +1,1485 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local World = workspace:WaitForChild("World")
+local MagicsIR = World:WaitForChild("MagicsIR")
+local Map = World:WaitForChild("Map")
+local Bases = Map:WaitForChild("Bases")
+
+local ALLREMBINDS = ReplicatedStorage:WaitForChild("ALLREMBINDS")
+local MainEvent = ALLREMBINDS:WaitForChild("MainUnreliableRemoteEvent")
+local REMOTE_CODE = "EMMFOSS__!ZCNSJNXCSDWQSANBX"
+
+local ATTRIBUTE_NAMES = {
+	"CuurctlyDoin",
+	"CurrentlyDoing",
+	"CurrentlyDoin",
+}
+
+local SELL_PROMPT_NAME = "SEllPRxtyPrmt"
+local STEAL_PROMPT_NAME = "ForMagicBallThings"
+
+local COLLECT_ZONE_FOLDER_NAME = "ColectZone"
+local COLLECT_ZONE_PART_NAME = "ColeectZone"
+
+local TELEPORT_SETTLE_TIME = 0.07
+local BASE_SETTLE_TIME = 0.07
+local PROMPT_EXTRA_HOLD_TIME = 0.07
+local PROMPT_MIN_HOLD_TIME = 0.07
+local PROMPT_TIMEOUT = 0.45
+local BETWEEN_ACTION_DELAY = 0.07
+local BETWEEN_MAGIC_DELAY = 0.07
+
+local STEAL_TELEPORT_SETTLE_TIME = 0.07
+local STEAL_CONFIRM_TIMEOUT = 1.25
+local STEAL_MIN_STAY_AFTER_FIRE = 0.07
+
+local ALL_MAGIC_NAMES = {
+	"Arcane Barrage",
+	"Soil Spike",
+	"Infernal Spark",
+	"Aqua Veil",
+	"Glow Shot",
+	"Celestial Thread",
+	"Soul Leech",
+	"Solar Impaler",
+	"Crystal of Ages",
+	"Lightbind",
+	"Gale Fang",
+	"Ember Needle",
+	"Flameburst Orb",
+	"Abyss Slash",
+	"Confuse Ray",
+	"Flame Flicker",
+	"Gaia's Wrath",
+	"Titan's Grasp",
+	"Relic of Aeons",
+	"Flame Arrow",
+	"Curse of Null",
+	"Dragon's Ember",
+	"Tempest Rune",
+	"Sky Rend",
+	"Starborn Hand",
+	"Wraith Chain",
+	"Sunlike",
+}
+
+local STEAL_MAGIC_PRIORITY = {}
+
+for index, magicName in ipairs(ALL_MAGIC_NAMES) do
+	STEAL_MAGIC_PRIORITY[magicName] = (#ALL_MAGIC_NAMES - index) + 1
+end
+
+local DO_NOT_SELL = {}
+
+local selectedPlayer = nil
+local dropdownOpen = false
+local sellingAll = false
+local stealingAll = false
+local protectingAll = false
+
+local oldGui = PlayerGui:FindFirstChild("MagicViewer")
+if oldGui then
+	oldGui:Destroy()
+end
+
+local function fireServerFunction(functionName, args)
+	MainEvent:FireServer(REMOTE_CODE, functionName, args)
+end
+
+local function New(className, props, parent)
+	local obj = Instance.new(className)
+
+	for k, v in pairs(props or {}) do
+		obj[k] = v
+	end
+
+	if parent then
+		obj.Parent = parent
+	end
+
+	return obj
+end
+
+local function corner(parent, radius)
+	return New("UICorner", {
+		CornerRadius = UDim.new(0, radius),
+	}, parent)
+end
+
+local function stroke(parent, color, thickness, transparency)
+	return New("UIStroke", {
+		Color = color,
+		Thickness = thickness or 1,
+		Transparency = transparency or 0,
+	}, parent)
+end
+
+local function padding(parent, l, r, t, b)
+	return New("UIPadding", {
+		PaddingLeft = UDim.new(0, l or 0),
+		PaddingRight = UDim.new(0, r or 0),
+		PaddingTop = UDim.new(0, t or 0),
+		PaddingBottom = UDim.new(0, b or 0),
+	}, parent)
+end
+
+local function clearList(frame)
+	for _, child in ipairs(frame:GetChildren()) do
+		if child:IsA("TextButton") or child:IsA("TextLabel") then
+			child:Destroy()
+		end
+	end
+end
+
+local function getCharacterRoot()
+	local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+	return character:WaitForChild("HumanoidRootPart", 5)
+end
+
+local function isWhitelistedMagic(magicModelOrName)
+	if typeof(magicModelOrName) == "Instance" then
+		return DO_NOT_SELL[magicModelOrName.Name] == true
+	end
+
+	return DO_NOT_SELL[tostring(magicModelOrName)] == true
+end
+
+local function getMagicAttribute(model)
+	for _, attrName in ipairs(ATTRIBUTE_NAMES) do
+		local value = model:GetAttribute(attrName)
+
+		if value ~= nil then
+			return attrName, tostring(value)
+		end
+	end
+
+	return nil, nil
+end
+
+local function magicBelongsToPlayer(player, magicModel)
+	if not player or not magicModel then
+		return false
+	end
+
+	local _, value = getMagicAttribute(magicModel)
+
+	if not value then
+		return false
+	end
+
+	local userId = tostring(player.UserId)
+	local name = player.Name
+
+	return string.find(value, userId, 1, true) ~= nil
+		or string.find(value, name, 1, true) ~= nil
+end
+
+local function getPlayerMagics(player)
+	local results = {}
+
+	if not player then
+		return results
+	end
+
+	for _, child in ipairs(MagicsIR:GetChildren()) do
+		if child:IsA("Model") and magicBelongsToPlayer(player, child) then
+			local attrName, attrValue = getMagicAttribute(child)
+
+			table.insert(results, {
+				Model = child,
+				Name = child.Name,
+				AttributeName = attrName or "?",
+				AttributeValue = attrValue or "?",
+			})
+		end
+	end
+
+	table.sort(results, function(a, b)
+		return string.lower(a.Name) < string.lower(b.Name)
+	end)
+
+	return results
+end
+
+local function sortMagicsForStealing(magics)
+	table.sort(magics, function(a, b)
+		local aPriority = STEAL_MAGIC_PRIORITY[a.Name] or math.huge
+		local bPriority = STEAL_MAGIC_PRIORITY[b.Name] or math.huge
+
+		if aPriority == bPriority then
+			return string.lower(a.Name) < string.lower(b.Name)
+		end
+
+		return aPriority < bPriority
+	end)
+end
+
+local function waitForLocalMagicByName(magicName, timeout)
+	local started = os.clock()
+
+	while os.clock() - started < timeout do
+		local localMagics = getPlayerMagics(LocalPlayer)
+
+		for _, info in ipairs(localMagics) do
+			if info.Name == magicName and info.Model and info.Model.Parent then
+				return info.Model
+			end
+		end
+
+		task.wait()
+	end
+
+	return nil
+end
+
+local function getPromptFromMagic(magicModel, promptName)
+	if not magicModel or not magicModel.Parent then
+		return nil
+	end
+
+	local hrp = magicModel:FindFirstChild("HumanoidRootPart")
+	if not hrp then
+		hrp = magicModel:FindFirstChild("HumanoidRootPart", true)
+	end
+
+	if not hrp then
+		return nil
+	end
+
+	local prompt = hrp:FindFirstChild(promptName)
+
+	if prompt and prompt:IsA("ProximityPrompt") then
+		return prompt
+	end
+
+	return nil
+end
+
+local function getSellPrompt(magicModel)
+	return getPromptFromMagic(magicModel, SELL_PROMPT_NAME)
+end
+
+local function getStealPrompt(magicModel)
+	return getPromptFromMagic(magicModel, STEAL_PROMPT_NAME)
+end
+
+local function getPlayerBase(player)
+	if not player then
+		return nil
+	end
+
+	local userId = tostring(player.UserId)
+
+	for _, base in ipairs(Bases:GetChildren()) do
+		local owner = base:GetAttribute("Owner")
+
+		if owner ~= nil then
+			local ownerText = tostring(owner)
+
+			if string.find(ownerText, userId, 1, true) then
+				return base
+			end
+		end
+	end
+
+	return nil
+end
+
+local function getBaseCollectZoneCFrame(base)
+	if not base then
+		return nil
+	end
+
+	local collectZoneFolder = base:FindFirstChild(COLLECT_ZONE_FOLDER_NAME)
+	if not collectZoneFolder then
+		return nil
+	end
+
+	local collectZone = collectZoneFolder:FindFirstChild(COLLECT_ZONE_PART_NAME)
+	if not collectZone then
+		return nil
+	end
+
+	if collectZone:IsA("BasePart") then
+		return collectZone.CFrame * CFrame.new(0, 3, 0)
+	end
+
+	if collectZone:IsA("Model") then
+		return collectZone:GetPivot() * CFrame.new(0, 3, 0)
+	end
+
+	return nil
+end
+
+local function teleportLocalPlayerToCFrame(cf)
+	local root = getCharacterRoot()
+
+	if not root or not cf then
+		return false
+	end
+
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	root.CFrame = cf
+
+	task.wait(TELEPORT_SETTLE_TIME)
+
+	return true
+end
+
+local function returnToLocalPlayerBase()
+	local base = getPlayerBase(LocalPlayer)
+
+	if not base then
+		return false, "local player base not found"
+	end
+
+	local cf = getBaseCollectZoneCFrame(base)
+
+	if not cf then
+		return false, "collect zone not found at " .. base.Name .. "." .. COLLECT_ZONE_FOLDER_NAME .. "." .. COLLECT_ZONE_PART_NAME
+	end
+
+	local success = teleportLocalPlayerToCFrame(cf)
+
+	if success then
+		task.wait(BASE_SETTLE_TIME)
+		return true, "returned to collect zone"
+	end
+
+	return false, "failed to return"
+end
+
+local function teleportToPrompt(prompt, customSettleTime)
+	local root = getCharacterRoot()
+
+	if not root then
+		return false
+	end
+
+	local promptPart = prompt.Parent
+
+	if not promptPart or not promptPart:IsA("BasePart") then
+		return false
+	end
+
+	local maxDistance = prompt.MaxActivationDistance
+	if maxDistance <= 0 then
+		maxDistance = 10
+	end
+
+	local offsetDistance = math.clamp(maxDistance * 0.35, 1.5, 5)
+	local targetCFrame = promptPart.CFrame * CFrame.new(0, 0, offsetDistance)
+
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	root.CFrame = targetCFrame
+
+	task.wait(customSettleTime or TELEPORT_SETTLE_TIME)
+
+	return true
+end
+
+local function activatePrompt(prompt)
+	if not prompt or not prompt.Parent then
+		return false
+	end
+
+	if not prompt:IsA("ProximityPrompt") then
+		return false
+	end
+
+	if not prompt.Enabled then
+		return false
+	end
+
+	local fired = false
+	local connection
+
+	connection = prompt.Triggered:Connect(function(playerWhoTriggered)
+		if playerWhoTriggered == nil or playerWhoTriggered == LocalPlayer then
+			fired = true
+		end
+	end)
+
+	prompt:InputHoldBegin()
+
+	local holdTime = tonumber(prompt.HoldDuration) or 0
+	task.wait(math.max(holdTime + PROMPT_EXTRA_HOLD_TIME, PROMPT_MIN_HOLD_TIME))
+
+	prompt:InputHoldEnd()
+
+	local startedWaiting = os.clock()
+
+	while not fired and prompt.Parent and os.clock() - startedWaiting < PROMPT_TIMEOUT do
+		task.wait()
+	end
+
+	if connection then
+		connection:Disconnect()
+	end
+
+	return fired
+end
+
+local function findLocalMagicToSellByName(magicName, originalModel)
+	if originalModel and originalModel.Parent and not isWhitelistedMagic(originalModel) then
+		local prompt = getSellPrompt(originalModel)
+
+		if prompt then
+			return originalModel
+		end
+	end
+
+	local localMagics = getPlayerMagics(LocalPlayer)
+
+	for _, info in ipairs(localMagics) do
+		if info.Name == magicName and info.Model and info.Model.Parent and not isWhitelistedMagic(info.Model) then
+			local prompt = getSellPrompt(info.Model)
+
+			if prompt then
+				return info.Model
+			end
+		end
+	end
+
+	return nil
+end
+
+local ScreenGui = New("ScreenGui", {
+	Name = "MagicViewer",
+	ResetOnSpawn = false,
+	IgnoreGuiInset = false,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+}, PlayerGui)
+
+local Main = New("Frame", {
+	Name = "Main",
+	Size = UDim2.fromOffset(780, 610),
+	Position = UDim2.new(0.5, -390, 0.5, -305),
+	BackgroundColor3 = Color3.fromRGB(24, 24, 28),
+	BorderSizePixel = 0,
+	Active = true,
+}, ScreenGui)
+
+corner(Main, 12)
+stroke(Main, Color3.fromRGB(75, 75, 90), 1, 0.25)
+
+local TitleBar = New("Frame", {
+	Name = "TitleBar",
+	Size = UDim2.new(1, 0, 0, 44),
+	BackgroundColor3 = Color3.fromRGB(32, 32, 38),
+	BorderSizePixel = 0,
+	Active = true,
+}, Main)
+
+corner(TitleBar, 12)
+
+New("Frame", {
+	AnchorPoint = Vector2.new(0, 1),
+	Position = UDim2.new(0, 0, 1, 0),
+	Size = UDim2.new(1, 0, 0, 12),
+	BackgroundColor3 = TitleBar.BackgroundColor3,
+	BorderSizePixel = 0,
+}, TitleBar)
+
+New("TextLabel", {
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(14, 0),
+	Size = UDim2.new(1, -100, 1, 0),
+	Font = Enum.Font.GothamBold,
+	TextSize = 16,
+	TextColor3 = Color3.fromRGB(245, 245, 245),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Text = "Magic Viewer",
+}, TitleBar)
+
+local CloseButton = New("TextButton", {
+	AnchorPoint = Vector2.new(1, 0.5),
+	Position = UDim2.new(1, -10, 0.5, 0),
+	Size = UDim2.fromOffset(32, 28),
+	BackgroundColor3 = Color3.fromRGB(70, 42, 48),
+	BorderSizePixel = 0,
+	Font = Enum.Font.GothamBold,
+	TextSize = 14,
+	TextColor3 = Color3.fromRGB(255, 220, 220),
+	Text = "X",
+}, TitleBar)
+
+corner(CloseButton, 8)
+
+local Content = New("Frame", {
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(12, 56),
+	Size = UDim2.new(1, -24, 1, -68),
+}, Main)
+
+local PlayerButton = New("TextButton", {
+	Size = UDim2.new(1, -470, 0, 36),
+	BackgroundColor3 = Color3.fromRGB(42, 42, 50),
+	BorderSizePixel = 0,
+	Font = Enum.Font.Gotham,
+	TextSize = 14,
+	TextColor3 = Color3.fromRGB(245, 245, 245),
+	Text = "Select player... ▼",
+	AutoButtonColor = false,
+}, Content)
+
+corner(PlayerButton, 8)
+stroke(PlayerButton, Color3.fromRGB(85, 85, 100), 1, 0.35)
+
+local SellAllButton = New("TextButton", {
+	Name = "SellAllButton",
+	Position = UDim2.new(1, -462, 0, 0),
+	Size = UDim2.fromOffset(108, 36),
+	BackgroundColor3 = Color3.fromRGB(120, 65, 45),
+	BorderSizePixel = 0,
+	Font = Enum.Font.GothamBold,
+	TextSize = 14,
+	TextColor3 = Color3.fromRGB(255, 240, 230),
+	Text = "Sell All",
+	AutoButtonColor = false,
+}, Content)
+
+corner(SellAllButton, 8)
+stroke(SellAllButton, Color3.fromRGB(150, 95, 75), 1, 0.25)
+
+local StealAllButton = New("TextButton", {
+	Name = "StealAllButton",
+	Position = UDim2.new(1, -346, 0, 0),
+	Size = UDim2.fromOffset(108, 36),
+	BackgroundColor3 = Color3.fromRGB(70, 70, 78),
+	BorderSizePixel = 0,
+	Font = Enum.Font.GothamBold,
+	TextSize = 14,
+	TextColor3 = Color3.fromRGB(210, 210, 215),
+	Text = "Steal All",
+	AutoButtonColor = false,
+	Active = false,
+}, Content)
+
+corner(StealAllButton, 8)
+stroke(StealAllButton, Color3.fromRGB(100, 100, 115), 1, 0.35)
+
+local ProtectButton = New("TextButton", {
+	Name = "ProtectButton",
+	Position = UDim2.new(1, -230, 0, 0),
+	Size = UDim2.fromOffset(108, 36),
+	BackgroundColor3 = Color3.fromRGB(55, 85, 110),
+	BorderSizePixel = 0,
+	Font = Enum.Font.GothamBold,
+	TextSize = 14,
+	TextColor3 = Color3.fromRGB(230, 245, 255),
+	Text = "Protect",
+	AutoButtonColor = false,
+}, Content)
+
+corner(ProtectButton, 8)
+stroke(ProtectButton, Color3.fromRGB(85, 125, 150), 1, 0.25)
+
+local WhitelistButton = New("TextButton", {
+	Name = "WhitelistButton",
+	Position = UDim2.new(1, -114, 0, 0),
+	Size = UDim2.fromOffset(114, 36),
+	BackgroundColor3 = Color3.fromRGB(55, 55, 70),
+	BorderSizePixel = 0,
+	Font = Enum.Font.GothamBold,
+	TextSize = 13,
+	TextColor3 = Color3.fromRGB(235, 235, 245),
+	Text = "Whitelist",
+	AutoButtonColor = false,
+}, Content)
+
+corner(WhitelistButton, 8)
+stroke(WhitelistButton, Color3.fromRGB(95, 95, 115), 1, 0.35)
+
+local SelectedLabel = New("TextLabel", {
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(0, 42),
+	Size = UDim2.new(1, 0, 0, 24),
+	Font = Enum.Font.Gotham,
+	TextSize = 13,
+	TextColor3 = Color3.fromRGB(175, 175, 185),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Text = "No player selected",
+}, Content)
+
+local SearchBox = New("TextBox", {
+	Position = UDim2.fromOffset(0, 72),
+	Size = UDim2.new(1, 0, 0, 34),
+	BackgroundColor3 = Color3.fromRGB(42, 42, 50),
+	BorderSizePixel = 0,
+	Font = Enum.Font.Gotham,
+	TextSize = 14,
+	TextColor3 = Color3.fromRGB(245, 245, 245),
+	PlaceholderText = "Search magics...",
+	PlaceholderColor3 = Color3.fromRGB(145, 145, 155),
+	Text = "",
+	ClearTextOnFocus = false,
+}, Content)
+
+corner(SearchBox, 8)
+stroke(SearchBox, Color3.fromRGB(85, 85, 100), 1, 0.35)
+padding(SearchBox, 10, 10, 0, 0)
+
+local StatsLabel = New("TextLabel", {
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(0, 110),
+	Size = UDim2.new(1, 0, 0, 24),
+	Font = Enum.Font.Gotham,
+	TextSize = 13,
+	TextColor3 = Color3.fromRGB(175, 175, 185),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Text = "Select a player to load magics",
+}, Content)
+
+local Results = New("ScrollingFrame", {
+	Position = UDim2.fromOffset(0, 138),
+	Size = UDim2.new(1, 0, 1, -138),
+	BackgroundColor3 = Color3.fromRGB(31, 31, 36),
+	BorderSizePixel = 0,
+	ScrollBarThickness = 6,
+	CanvasSize = UDim2.new(0, 0, 0, 0),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+	ClipsDescendants = true,
+}, Content)
+
+corner(Results, 8)
+stroke(Results, Color3.fromRGB(70, 70, 85), 1, 0.45)
+padding(Results, 6, 6, 6, 6)
+
+New("UIListLayout", {
+	SortOrder = Enum.SortOrder.LayoutOrder,
+	Padding = UDim.new(0, 5),
+}, Results)
+
+local Dropdown = New("ScrollingFrame", {
+	Position = UDim2.fromOffset(0, 40),
+	Size = UDim2.new(1, -470, 0, 170),
+	BackgroundColor3 = Color3.fromRGB(34, 34, 40),
+	BorderSizePixel = 0,
+	ScrollBarThickness = 6,
+	CanvasSize = UDim2.new(0, 0, 0, 0),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+	Visible = false,
+	ClipsDescendants = true,
+	ZIndex = 50,
+}, Content)
+
+corner(Dropdown, 8)
+stroke(Dropdown, Color3.fromRGB(95, 95, 115), 1, 0.2)
+padding(Dropdown, 6, 6, 6, 6)
+
+New("UIListLayout", {
+	SortOrder = Enum.SortOrder.LayoutOrder,
+	Padding = UDim.new(0, 4),
+}, Dropdown)
+
+local WhitelistPopup = New("Frame", {
+	Name = "WhitelistPopup",
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.5, 8),
+	Size = UDim2.fromOffset(560, 470),
+	BackgroundColor3 = Color3.fromRGB(26, 26, 32),
+	BorderSizePixel = 0,
+	Visible = false,
+	ZIndex = 100,
+}, Main)
+
+corner(WhitelistPopup, 12)
+stroke(WhitelistPopup, Color3.fromRGB(110, 110, 130), 1, 0.15)
+
+local WhitelistTitleBar = New("Frame", {
+	Size = UDim2.new(1, 0, 0, 44),
+	BackgroundColor3 = Color3.fromRGB(35, 35, 44),
+	BorderSizePixel = 0,
+	ZIndex = 101,
+}, WhitelistPopup)
+
+corner(WhitelistTitleBar, 12)
+
+New("Frame", {
+	AnchorPoint = Vector2.new(0, 1),
+	Position = UDim2.new(0, 0, 1, 0),
+	Size = UDim2.new(1, 0, 0, 12),
+	BackgroundColor3 = WhitelistTitleBar.BackgroundColor3,
+	BorderSizePixel = 0,
+	ZIndex = 101,
+}, WhitelistTitleBar)
+
+New("TextLabel", {
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(14, 0),
+	Size = UDim2.new(1, -70, 1, 0),
+	Font = Enum.Font.GothamBold,
+	TextSize = 15,
+	TextColor3 = Color3.fromRGB(245, 245, 245),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Text = "Magic Sell Whitelist",
+	ZIndex = 102,
+}, WhitelistTitleBar)
+
+local WhitelistClose = New("TextButton", {
+	AnchorPoint = Vector2.new(1, 0.5),
+	Position = UDim2.new(1, -10, 0.5, 0),
+	Size = UDim2.fromOffset(32, 28),
+	BackgroundColor3 = Color3.fromRGB(70, 42, 48),
+	BorderSizePixel = 0,
+	Font = Enum.Font.GothamBold,
+	TextSize = 14,
+	TextColor3 = Color3.fromRGB(255, 220, 220),
+	Text = "X",
+	ZIndex = 102,
+}, WhitelistTitleBar)
+
+corner(WhitelistClose, 8)
+
+New("TextLabel", {
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(14, 52),
+	Size = UDim2.new(1, -28, 0, 34),
+	Font = Enum.Font.Gotham,
+	TextSize = 13,
+	TextColor3 = Color3.fromRGB(185, 185, 195),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextWrapped = true,
+	Text = "Red = will be sold. Green = protected from Sell All and auto-sell after Steal All.",
+	ZIndex = 101,
+}, WhitelistPopup)
+
+local WhitelistList = New("ScrollingFrame", {
+	Position = UDim2.fromOffset(14, 94),
+	Size = UDim2.new(1, -28, 1, -108),
+	BackgroundColor3 = Color3.fromRGB(32, 32, 38),
+	BorderSizePixel = 0,
+	ScrollBarThickness = 6,
+	CanvasSize = UDim2.new(0, 0, 0, 0),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+	ClipsDescendants = true,
+	ZIndex = 101,
+}, WhitelistPopup)
+
+corner(WhitelistList, 8)
+stroke(WhitelistList, Color3.fromRGB(80, 80, 95), 1, 0.4)
+padding(WhitelistList, 8, 8, 8, 8)
+
+New("UIGridLayout", {
+	SortOrder = Enum.SortOrder.LayoutOrder,
+	CellPadding = UDim2.fromOffset(8, 8),
+	CellSize = UDim2.fromOffset(165, 38),
+}, WhitelistList)
+
+local updateResults
+local updateStealAllButtonState
+local renderWhitelist
+
+local function setDropdown(open)
+	dropdownOpen = open
+	Dropdown.Visible = open
+
+	if selectedPlayer then
+		PlayerButton.Text = selectedPlayer.Name .. (open and " ▲" or " ▼")
+	else
+		PlayerButton.Text = "Select player..." .. (open and " ▲" or " ▼")
+	end
+
+	if updateStealAllButtonState then
+		updateStealAllButtonState()
+	end
+end
+
+updateStealAllButtonState = function()
+	if stealingAll then
+		StealAllButton.Text = "Stealing..."
+		StealAllButton.Active = false
+		StealAllButton.BackgroundColor3 = Color3.fromRGB(95, 95, 95)
+		StealAllButton.TextColor3 = Color3.fromRGB(235, 235, 235)
+		return
+	end
+
+	if selectedPlayer and selectedPlayer ~= LocalPlayer then
+		StealAllButton.Text = "Steal All"
+		StealAllButton.Active = true
+		StealAllButton.BackgroundColor3 = Color3.fromRGB(55, 75, 130)
+		StealAllButton.TextColor3 = Color3.fromRGB(230, 240, 255)
+	else
+		StealAllButton.Text = "Steal All"
+		StealAllButton.Active = false
+		StealAllButton.BackgroundColor3 = Color3.fromRGB(70, 70, 78)
+		StealAllButton.TextColor3 = Color3.fromRGB(210, 210, 215)
+	end
+end
+
+local function emptyResult(text)
+	clearList(Results)
+
+	New("TextLabel", {
+		Size = UDim2.new(1, -4, 0, 34),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.Gotham,
+		TextSize = 14,
+		TextColor3 = Color3.fromRGB(155, 155, 165),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = text,
+	}, Results)
+end
+
+updateResults = function()
+	clearList(Results)
+
+	if not selectedPlayer then
+		StatsLabel.Text = "Select a player to load magics"
+		emptyResult("No player selected")
+		return
+	end
+
+	local magics = getPlayerMagics(selectedPlayer)
+	local query = string.lower(SearchBox.Text or "")
+	local shown = 0
+
+	for _, info in ipairs(magics) do
+		local nameLower = string.lower(info.Name)
+		local attrLower = string.lower(info.AttributeValue)
+
+		local matches = query == ""
+			or string.find(nameLower, query, 1, true)
+			or string.find(attrLower, query, 1, true)
+
+		if matches then
+			shown += 1
+
+			local whitelisted = isWhitelistedMagic(info.Name)
+
+			local button = New("TextButton", {
+				Size = UDim2.new(1, -4, 0, 48),
+				BackgroundColor3 = whitelisted and Color3.fromRGB(45, 85, 55) or Color3.fromRGB(45, 45, 54),
+				BorderSizePixel = 0,
+				AutoButtonColor = false,
+				Font = Enum.Font.Gotham,
+				TextSize = 13,
+				TextColor3 = Color3.fromRGB(240, 240, 245),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextYAlignment = Enum.TextYAlignment.Center,
+				Text = "  " .. info.Name .. (whitelisted and " [WHITELISTED]" or "") .. "\n  " .. info.AttributeName .. ": " .. info.AttributeValue,
+			}, Results)
+
+			corner(button, 7)
+
+			button.MouseEnter:Connect(function()
+				button.BackgroundColor3 = Color3.fromRGB(58, 58, 70)
+			end)
+
+			button.MouseLeave:Connect(function()
+				if isWhitelistedMagic(info.Name) then
+					button.BackgroundColor3 = Color3.fromRGB(45, 85, 55)
+				else
+					button.BackgroundColor3 = Color3.fromRGB(45, 45, 54)
+				end
+			end)
+
+			button.MouseButton1Click:Connect(function()
+				print("Selected magic:", info.Name)
+				print("Attribute:", info.AttributeName, info.AttributeValue)
+				print("Path:", info.Model:GetFullName())
+			end)
+		end
+	end
+
+	StatsLabel.Text = string.format("Showing %d / %d magics for %s", shown, #magics, selectedPlayer.Name)
+
+	if shown == 0 then
+		emptyResult("No matching magics found")
+	end
+end
+
+local function updateDropdown()
+	clearList(Dropdown)
+
+	local players = Players:GetPlayers()
+
+	table.sort(players, function(a, b)
+		return string.lower(a.Name) < string.lower(b.Name)
+	end)
+
+	for _, player in ipairs(players) do
+		local button = New("TextButton", {
+			Size = UDim2.new(1, -4, 0, 30),
+			BackgroundColor3 = player == selectedPlayer and Color3.fromRGB(65, 75, 100) or Color3.fromRGB(45, 45, 54),
+			BorderSizePixel = 0,
+			AutoButtonColor = false,
+			Font = Enum.Font.Gotham,
+			TextSize = 13,
+			TextColor3 = Color3.fromRGB(240, 240, 245),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Text = "  " .. player.Name,
+			ZIndex = 51,
+		}, Dropdown)
+
+		corner(button, 6)
+
+		button.MouseEnter:Connect(function()
+			button.BackgroundColor3 = Color3.fromRGB(58, 58, 70)
+		end)
+
+		button.MouseLeave:Connect(function()
+			if player == selectedPlayer then
+				button.BackgroundColor3 = Color3.fromRGB(65, 75, 100)
+			else
+				button.BackgroundColor3 = Color3.fromRGB(45, 45, 54)
+			end
+		end)
+
+		button.MouseButton1Click:Connect(function()
+			selectedPlayer = player
+			SelectedLabel.Text = "Selected: " .. player.Name
+			setDropdown(false)
+			updateDropdown()
+			updateResults()
+			updateStealAllButtonState()
+		end)
+	end
+end
+
+renderWhitelist = function()
+	clearList(WhitelistList)
+
+	for index, magicName in ipairs(ALL_MAGIC_NAMES) do
+		local button = New("TextButton", {
+			LayoutOrder = index,
+			Size = UDim2.fromOffset(165, 38),
+			BorderSizePixel = 0,
+			AutoButtonColor = false,
+			Font = Enum.Font.GothamBold,
+			TextSize = 12,
+			TextColor3 = Color3.fromRGB(255, 255, 255),
+			TextWrapped = true,
+			ZIndex = 102,
+		}, WhitelistList)
+
+		corner(button, 7)
+
+		local function refreshButton()
+			if DO_NOT_SELL[magicName] == true then
+				button.BackgroundColor3 = Color3.fromRGB(45, 130, 65)
+				button.Text = magicName .. "\nPROTECTED"
+			else
+				button.BackgroundColor3 = Color3.fromRGB(135, 45, 45)
+				button.Text = magicName .. "\nSELL"
+			end
+		end
+
+		refreshButton()
+
+		button.MouseEnter:Connect(function()
+			if DO_NOT_SELL[magicName] == true then
+				button.BackgroundColor3 = Color3.fromRGB(60, 155, 80)
+			else
+				button.BackgroundColor3 = Color3.fromRGB(165, 55, 55)
+			end
+		end)
+
+		button.MouseLeave:Connect(refreshButton)
+
+		button.MouseButton1Click:Connect(function()
+			DO_NOT_SELL[magicName] = not DO_NOT_SELL[magicName]
+			refreshButton()
+			updateResults()
+		end)
+	end
+end
+
+local function sellOneMagic(magicModel)
+	if not magicModel or not magicModel.Parent then
+		return false, "missing magic"
+	end
+
+	if isWhitelistedMagic(magicModel) then
+		return false, "whitelisted"
+	end
+
+	local prompt = getSellPrompt(magicModel)
+
+	if not prompt then
+		return false, "missing sell prompt"
+	end
+
+	prompt.HoldDuration = 0.1
+
+	if not teleportToPrompt(prompt) then
+		return false, "teleport failed"
+	end
+
+	if activatePrompt(prompt) then
+		return true, "sold"
+	end
+
+	return false, "prompt not fired"
+end
+
+local function sellAllLocalPlayerMagics()
+	if sellingAll then
+		return
+	end
+
+	sellingAll = true
+	SellAllButton.Text = "Selling..."
+	SellAllButton.BackgroundColor3 = Color3.fromRGB(95, 95, 95)
+
+	local originalCFrame
+	local root = getCharacterRoot()
+
+	if root then
+		originalCFrame = root.CFrame
+	end
+
+	local magics = getPlayerMagics(LocalPlayer)
+	local total = #magics
+	local sold = 0
+	local failed = 0
+	local skipped = 0
+
+	if total == 0 then
+		StatsLabel.Text = "No local-player magics found to sell"
+	else
+		for index, info in ipairs(magics) do
+			if not sellingAll then
+				break
+			end
+
+			if info.Model and info.Model.Parent then
+				if isWhitelistedMagic(info.Name) then
+					skipped += 1
+					StatsLabel.Text = string.format("Skipping whitelisted %d / %d: %s", index, total, info.Name)
+					task.wait(BETWEEN_ACTION_DELAY)
+				else
+					StatsLabel.Text = string.format("Selling local magic %d / %d: %s", index, total, info.Name)
+
+					local success, reason = sellOneMagic(info.Model)
+
+					if success then
+						sold += 1
+					else
+						failed += 1
+						warn("Failed to sell:", info.Name, reason)
+					end
+
+					task.wait(BETWEEN_MAGIC_DELAY)
+				end
+			end
+		end
+
+		StatsLabel.Text = string.format("Sell All done. Sold: %d | Failed: %d | Skipped: %d", sold, failed, skipped)
+	end
+
+	if originalCFrame then
+		local newRoot = getCharacterRoot()
+
+		if newRoot then
+			newRoot.AssemblyLinearVelocity = Vector3.zero
+			newRoot.AssemblyAngularVelocity = Vector3.zero
+			newRoot.CFrame = originalCFrame
+		end
+	end
+
+	SellAllButton.Text = "Sell All"
+	SellAllButton.BackgroundColor3 = Color3.fromRGB(120, 65, 45)
+	sellingAll = false
+
+	task.wait(BETWEEN_ACTION_DELAY)
+	updateResults()
+end
+
+local function stealOneMagic(magicModel)
+	if not magicModel or not magicModel.Parent then
+		return false, "missing magic"
+	end
+
+	local prompt = getStealPrompt(magicModel)
+
+	if not prompt then
+		return false, "missing steal prompt"
+	end
+
+	prompt.Enabled = true
+	prompt.HoldDuration = 0.1
+
+	if not teleportToPrompt(prompt, STEAL_TELEPORT_SETTLE_TIME) then
+		return false, "teleport failed"
+	end
+
+	local fired = activatePrompt(prompt)
+
+	task.wait(STEAL_MIN_STAY_AFTER_FIRE)
+
+	if fired then
+		return true, "steal prompt fired"
+	end
+
+	return false, "prompt not fired"
+end
+
+local function stealAllSelectedPlayerMagics()
+	if stealingAll then
+		return
+	end
+
+	if not selectedPlayer then
+		StatsLabel.Text = "Select another player first"
+		return
+	end
+
+	if selectedPlayer == LocalPlayer then
+		StatsLabel.Text = "Steal All only works on other players"
+		return
+	end
+
+	stealingAll = true
+	updateStealAllButtonState()
+
+	local magics = getPlayerMagics(selectedPlayer)
+	sortMagicsForStealing(magics)
+
+	local total = #magics
+	local stolen = 0
+	local stealFailed = 0
+	local soldAfterSteal = 0
+	local sellFailedAfterSteal = 0
+	local skippedSelling = 0
+	local returnedToCollectZone = 0
+
+	if total == 0 then
+		StatsLabel.Text = "No magics found for " .. selectedPlayer.Name
+	else
+		for index, info in ipairs(magics) do
+			if not stealingAll then
+				break
+			end
+
+			if info.Model and info.Model.Parent then
+				local magicName = info.Name
+				local originalModel = info.Model
+
+				StatsLabel.Text = string.format(
+					"Stealing %d / %d from %s: %s",
+					index,
+					total,
+					selectedPlayer.Name,
+					magicName
+				)
+
+				local stealSuccess, stealReason = stealOneMagic(originalModel)
+
+				StatsLabel.Text = "Returning to collect zone after steal attempt: " .. magicName
+
+				local returned, returnReason = returnToLocalPlayerBase()
+
+				if returned then
+					returnedToCollectZone += 1
+				else
+					warn("Failed to return to collect zone after steal:", magicName, returnReason)
+				end
+
+				task.wait(BETWEEN_ACTION_DELAY)
+
+				if stealSuccess then
+					stolen += 1
+
+					local localStolenMagic = waitForLocalMagicByName(magicName, STEAL_CONFIRM_TIMEOUT)
+
+					if isWhitelistedMagic(magicName) then
+						skippedSelling += 1
+						StatsLabel.Text = "Kept whitelisted magic: " .. magicName
+					else
+						StatsLabel.Text = "Selling stolen magic: " .. magicName
+
+						local sellCandidate = localStolenMagic or findLocalMagicToSellByName(magicName, originalModel)
+
+						if sellCandidate and sellCandidate.Parent then
+							local sellSuccess, sellReason = sellOneMagic(sellCandidate)
+
+							if sellSuccess then
+								soldAfterSteal += 1
+								StatsLabel.Text = "Sold stolen magic: " .. magicName
+							else
+								sellFailedAfterSteal += 1
+								warn("Failed to sell stolen magic:", magicName, sellReason)
+							end
+
+							task.wait(BETWEEN_ACTION_DELAY)
+
+							local returnedAgain, returnAgainReason = returnToLocalPlayerBase()
+
+							if returnedAgain then
+								returnedToCollectZone += 1
+							else
+								warn("Failed to return to collect zone after selling:", magicName, returnAgainReason)
+							end
+						else
+							sellFailedAfterSteal += 1
+							warn("Could not find stolen magic to sell:", magicName)
+						end
+					end
+				else
+					stealFailed += 1
+					warn("Failed to steal:", magicName, stealReason)
+				end
+
+				task.wait(BETWEEN_MAGIC_DELAY)
+			end
+		end
+
+		StatsLabel.Text = string.format(
+			"Steal All done. Stolen: %d | Steal Failed: %d | Sold: %d | Sell Failed: %d | Kept: %d | Collect Returns: %d",
+			stolen,
+			stealFailed,
+			soldAfterSteal,
+			sellFailedAfterSteal,
+			skippedSelling,
+			returnedToCollectZone
+		)
+	end
+
+	stealingAll = false
+	updateStealAllButtonState()
+
+	task.wait(BETWEEN_ACTION_DELAY)
+	updateResults()
+end
+
+local function protectOneMagic(magicModel)
+	if not magicModel or not magicModel.Parent then
+		return false, "missing magic"
+	end
+
+	local prompt = getStealPrompt(magicModel)
+
+	if not prompt then
+		return false, "missing protect target"
+	end
+
+	fireServerFunction("DestroySmThhhHHHH_", {
+		prompt
+	})
+
+	return true, "protected"
+end
+
+local function protectAllLocalPlayerMagics()
+	if protectingAll then
+		return
+	end
+
+	protectingAll = true
+	ProtectButton.Text = "Protecting..."
+	ProtectButton.BackgroundColor3 = Color3.fromRGB(95, 95, 95)
+
+	local magics = getPlayerMagics(LocalPlayer)
+
+	local total = #magics
+	local protected = 0
+	local failed = 0
+
+	if total == 0 then
+		StatsLabel.Text = "No local-player magics found to protect"
+	else
+		for index, info in ipairs(magics) do
+			if not protectingAll then
+				break
+			end
+
+			if info.Model and info.Model.Parent then
+				StatsLabel.Text = string.format("Protecting %d / %d: %s", index, total, info.Name)
+
+				local success, reason = protectOneMagic(info.Model)
+
+				if success then
+					protected += 1
+				else
+					failed += 1
+					warn("Failed to protect:", info.Name, reason)
+				end
+
+				task.wait(BETWEEN_ACTION_DELAY)
+			end
+		end
+
+		StatsLabel.Text = string.format("Protect done. Protected: %d | Failed: %d", protected, failed)
+	end
+
+	ProtectButton.Text = "Protect"
+	ProtectButton.BackgroundColor3 = Color3.fromRGB(55, 85, 110)
+	protectingAll = false
+
+	task.wait(BETWEEN_ACTION_DELAY)
+	updateResults()
+end
+
+do
+	local dragging = false
+	local dragStart
+	local startPosition
+
+	TitleBar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			dragStart = input.Position
+			startPosition = Main.Position
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = false
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+			local delta = input.Position - dragStart
+
+			Main.Position = UDim2.new(
+				startPosition.X.Scale,
+				startPosition.X.Offset + delta.X,
+				startPosition.Y.Scale,
+				startPosition.Y.Offset + delta.Y
+			)
+		end
+	end)
+end
+
+PlayerButton.MouseButton1Click:Connect(function()
+	updateDropdown()
+	setDropdown(not dropdownOpen)
+end)
+
+SellAllButton.MouseButton1Click:Connect(function()
+	task.spawn(sellAllLocalPlayerMagics)
+end)
+
+SellAllButton.MouseEnter:Connect(function()
+	if not sellingAll then
+		SellAllButton.BackgroundColor3 = Color3.fromRGB(145, 75, 52)
+	end
+end)
+
+SellAllButton.MouseLeave:Connect(function()
+	if not sellingAll then
+		SellAllButton.BackgroundColor3 = Color3.fromRGB(120, 65, 45)
+	end
+end)
+
+StealAllButton.MouseButton1Click:Connect(function()
+	if not StealAllButton.Active then
+		return
+	end
+
+	task.spawn(stealAllSelectedPlayerMagics)
+end)
+
+StealAllButton.MouseEnter:Connect(function()
+	if stealingAll then
+		return
+	end
+
+	if selectedPlayer and selectedPlayer ~= LocalPlayer then
+		StealAllButton.BackgroundColor3 = Color3.fromRGB(70, 95, 160)
+	end
+end)
+
+StealAllButton.MouseLeave:Connect(function()
+	updateStealAllButtonState()
+end)
+
+ProtectButton.MouseButton1Click:Connect(function()
+	task.spawn(protectAllLocalPlayerMagics)
+end)
+
+ProtectButton.MouseEnter:Connect(function()
+	if not protectingAll then
+		ProtectButton.BackgroundColor3 = Color3.fromRGB(70, 110, 145)
+	end
+end)
+
+ProtectButton.MouseLeave:Connect(function()
+	if not protectingAll then
+		ProtectButton.BackgroundColor3 = Color3.fromRGB(55, 85, 110)
+	end
+end)
+
+WhitelistButton.MouseButton1Click:Connect(function()
+	WhitelistPopup.Visible = true
+	renderWhitelist()
+end)
+
+WhitelistButton.MouseEnter:Connect(function()
+	WhitelistButton.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+end)
+
+WhitelistButton.MouseLeave:Connect(function()
+	WhitelistButton.BackgroundColor3 = Color3.fromRGB(55, 55, 70)
+end)
+
+WhitelistClose.MouseButton1Click:Connect(function()
+	WhitelistPopup.Visible = false
+end)
+
+SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+	updateResults()
+end)
+
+CloseButton.MouseButton1Click:Connect(function()
+	ScreenGui:Destroy()
+end)
+
+Players.PlayerAdded:Connect(function()
+	updateDropdown()
+	updateResults()
+	updateStealAllButtonState()
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	if selectedPlayer == player then
+		selectedPlayer = nil
+		SelectedLabel.Text = "No player selected"
+		setDropdown(false)
+		updateResults()
+		updateStealAllButtonState()
+	end
+
+	updateDropdown()
+end)
+
+MagicsIR.ChildAdded:Connect(function()
+	updateResults()
+end)
+
+MagicsIR.ChildRemoved:Connect(function()
+	updateResults()
+end)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then
+		return
+	end
+
+	if input.KeyCode == Enum.KeyCode.RightShift then
+		ScreenGui.Enabled = not ScreenGui.Enabled
+	end
+end)
+
+updateDropdown()
+updateResults()
+setDropdown(false)
+updateStealAllButtonState()
+renderWhitelist()
+
+print("Magic Viewer loaded.")
+print("MagicsIR:", MagicsIR:GetFullName())
+print("Base return target: workspace.World.Map.Bases.Base#.ColectZone.ColeectZone")
+print("Steal order: reverse ALL_MAGIC_NAMES, starting from Sunlike.")
+print("Protect targets only LocalPlayer-owned magics.")
