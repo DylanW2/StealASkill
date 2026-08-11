@@ -1,0 +1,413 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local ALLREMBINDS = ReplicatedStorage:WaitForChild("ALLREMBINDS")
+local MainEvent = ALLREMBINDS:WaitForChild("MainRemoteFunction")
+
+local REMOTE_CODE = "EMMFOSS__!ZCNSJNXCSDWQSANBX"
+
+local REBIRTH_VALUE = 999999999999999999999999999999999
+
+local selectedPlayer = nil
+local dropdownOpen = false
+
+local oldGui = PlayerGui:FindFirstChild("RebirthSetterGui")
+if oldGui then
+	oldGui:Destroy()
+end
+
+local function fireServerFunction(functionName, args)
+	return MainEvent:InvokeServer(REMOTE_CODE, functionName, args)
+end
+
+local function setPlayerRebirths(targetPlayer)
+	if not targetPlayer then
+		return false, "No target player"
+	end
+
+	local success, result = pcall(function()
+		return fireServerFunction("FindObject_ExecuteOnIt", {
+			targetPlayer,
+			{"leaderstats", "Rebirths"},
+			{
+				F = "ChangeProptyOfSmtHSHHH__",
+				V = {
+					"__OBjCtaAA",
+					"Value",
+					REBIRTH_VALUE,
+					{FP = targetPlayer}
+				},
+				FOBO = true
+			}
+		})
+	end)
+
+	if success then
+		return true, result
+	else
+		return false, result
+	end
+end
+
+local function New(className, props, parent)
+	local obj = Instance.new(className)
+
+	for k, v in pairs(props or {}) do
+		obj[k] = v
+	end
+
+	if parent then
+		obj.Parent = parent
+	end
+
+	return obj
+end
+
+local function corner(parent, radius)
+	return New("UICorner", {
+		CornerRadius = UDim.new(0, radius),
+	}, parent)
+end
+
+local function stroke(parent, color, thickness, transparency)
+	return New("UIStroke", {
+		Color = color,
+		Thickness = thickness or 1,
+		Transparency = transparency or 0,
+	}, parent)
+end
+
+local function padding(parent, l, r, t, b)
+	return New("UIPadding", {
+		PaddingLeft = UDim.new(0, l or 0),
+		PaddingRight = UDim.new(0, r or 0),
+		PaddingTop = UDim.new(0, t or 0),
+		PaddingBottom = UDim.new(0, b or 0),
+	}, parent)
+end
+
+local function clearList(frame)
+	for _, child in ipairs(frame:GetChildren()) do
+		if child:IsA("TextButton") or child:IsA("TextLabel") then
+			child:Destroy()
+		end
+	end
+end
+
+local ScreenGui = New("ScreenGui", {
+	Name = "RebirthSetterGui",
+	ResetOnSpawn = false,
+	IgnoreGuiInset = false,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+}, PlayerGui)
+
+local Main = New("Frame", {
+	Name = "Main",
+	Size = UDim2.fromOffset(320, 190),
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -90),
+	BackgroundColor3 = Color3.fromRGB(24, 24, 28),
+	BorderSizePixel = 0,
+	Active = true,
+}, ScreenGui)
+
+corner(Main, 10)
+stroke(Main, Color3.fromRGB(75, 75, 90), 1, 0.25)
+
+local TitleBar = New("Frame", {
+	Name = "TitleBar",
+	Size = UDim2.new(1, 0, 0, 38),
+	BackgroundColor3 = Color3.fromRGB(32, 32, 38),
+	BorderSizePixel = 0,
+	Active = true,
+}, Main)
+
+corner(TitleBar, 10)
+
+New("Frame", {
+	AnchorPoint = Vector2.new(0, 1),
+	Position = UDim2.new(0, 0, 1, 0),
+	Size = UDim2.new(1, 0, 0, 10),
+	BackgroundColor3 = TitleBar.BackgroundColor3,
+	BorderSizePixel = 0,
+}, TitleBar)
+
+New("TextLabel", {
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(12, 0),
+	Size = UDim2.new(1, -90, 1, 0),
+	Font = Enum.Font.GothamBold,
+	TextSize = 14,
+	TextColor3 = Color3.fromRGB(245, 245, 245),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Text = "Player Banner",
+}, TitleBar)
+
+local CloseButton = New("TextButton", {
+	AnchorPoint = Vector2.new(1, 0.5),
+	Position = UDim2.new(1, -8, 0.5, 0),
+	Size = UDim2.fromOffset(30, 26),
+	BackgroundColor3 = Color3.fromRGB(70, 42, 48),
+	BorderSizePixel = 0,
+	Font = Enum.Font.GothamBold,
+	TextSize = 13,
+	TextColor3 = Color3.fromRGB(255, 220, 220),
+	Text = "X",
+	AutoButtonColor = false,
+}, TitleBar)
+
+corner(CloseButton, 7)
+
+local Content = New("Frame", {
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(12, 50),
+	Size = UDim2.new(1, -24, 1, -62),
+}, Main)
+
+local PlayerButton = New("TextButton", {
+	Name = "PlayerButton",
+	Size = UDim2.new(1, 0, 0, 34),
+	BackgroundColor3 = Color3.fromRGB(42, 42, 50),
+	BorderSizePixel = 0,
+	Font = Enum.Font.Gotham,
+	TextSize = 13,
+	TextColor3 = Color3.fromRGB(245, 245, 245),
+	Text = "Select player... ▼",
+	AutoButtonColor = false,
+}, Content)
+
+corner(PlayerButton, 8)
+stroke(PlayerButton, Color3.fromRGB(85, 85, 100), 1, 0.35)
+
+local Dropdown = New("ScrollingFrame", {
+	Name = "Dropdown",
+	Position = UDim2.fromOffset(0, 39),
+	Size = UDim2.new(1, 0, 0, 100),
+	BackgroundColor3 = Color3.fromRGB(34, 34, 40),
+	BorderSizePixel = 0,
+	ScrollBarThickness = 6,
+	CanvasSize = UDim2.new(0, 0, 0, 0),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+	Visible = false,
+	ClipsDescendants = true,
+	ZIndex = 20,
+}, Content)
+
+corner(Dropdown, 8)
+stroke(Dropdown, Color3.fromRGB(95, 95, 115), 1, 0.25)
+padding(Dropdown, 6, 6, 6, 6)
+
+New("UIListLayout", {
+	SortOrder = Enum.SortOrder.LayoutOrder,
+	Padding = UDim.new(0, 4),
+}, Dropdown)
+
+local SelectedLabel = New("TextLabel", {
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(0, 42),
+	Size = UDim2.new(1, 0, 0, 24),
+	Font = Enum.Font.Gotham,
+	TextSize = 12,
+	TextColor3 = Color3.fromRGB(175, 175, 185),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Text = "No player selected",
+}, Content)
+
+local SetButton = New("TextButton", {
+	Name = "SetButton",
+	Position = UDim2.fromOffset(0, 76),
+	Size = UDim2.new(1, 0, 0, 36),
+	BackgroundColor3 = Color3.fromRGB(55, 90, 60),
+	BorderSizePixel = 0,
+	Font = Enum.Font.GothamBold,
+	TextSize = 14,
+	TextColor3 = Color3.fromRGB(230, 255, 235),
+	Text = "Ban Player",
+	AutoButtonColor = false,
+}, Content)
+
+corner(SetButton, 8)
+stroke(SetButton, Color3.fromRGB(90, 130, 95), 1, 0.3)
+
+local StatusLabel = New("TextLabel", {
+	BackgroundTransparency = 1,
+	Position = UDim2.fromOffset(0, 116),
+	Size = UDim2.new(1, 0, 0, 24),
+	Font = Enum.Font.Gotham,
+	TextSize = 12,
+	TextColor3 = Color3.fromRGB(175, 175, 185),
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Text = "Ready",
+}, Content)
+
+local function setDropdown(open)
+	dropdownOpen = open
+	Dropdown.Visible = open
+
+	if selectedPlayer then
+		PlayerButton.Text = selectedPlayer.Name .. (open and " ▲" or " ▼")
+	else
+		PlayerButton.Text = "Select player..." .. (open and " ▲" or " ▼")
+	end
+end
+
+local function updateDropdown()
+	clearList(Dropdown)
+
+	local playerList = Players:GetPlayers()
+
+	table.sort(playerList, function(a, b)
+		return string.lower(a.Name) < string.lower(b.Name)
+	end)
+
+	for _, player in ipairs(playerList) do
+		local button = New("TextButton", {
+			Size = UDim2.new(1, -4, 0, 30),
+			BackgroundColor3 = player == selectedPlayer and Color3.fromRGB(65, 75, 100) or Color3.fromRGB(45, 45, 54),
+			BorderSizePixel = 0,
+			AutoButtonColor = false,
+			Font = Enum.Font.Gotham,
+			TextSize = 13,
+			TextColor3 = Color3.fromRGB(240, 240, 245),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Text = "  " .. player.Name,
+			ZIndex = 21,
+		}, Dropdown)
+
+		corner(button, 6)
+
+		button.MouseEnter:Connect(function()
+			button.BackgroundColor3 = Color3.fromRGB(58, 58, 70)
+		end)
+
+		button.MouseLeave:Connect(function()
+			if player == selectedPlayer then
+				button.BackgroundColor3 = Color3.fromRGB(65, 75, 100)
+			else
+				button.BackgroundColor3 = Color3.fromRGB(45, 45, 54)
+			end
+		end)
+
+		button.MouseButton1Click:Connect(function()
+			selectedPlayer = player
+			SelectedLabel.Text = "Selected: " .. player.Name
+			StatusLabel.Text = "Ready"
+			setDropdown(false)
+			updateDropdown()
+		end)
+	end
+end
+
+PlayerButton.MouseButton1Click:Connect(function()
+	updateDropdown()
+	setDropdown(not dropdownOpen)
+end)
+
+SetButton.MouseButton1Click:Connect(function()
+	if not selectedPlayer then
+		StatusLabel.Text = "Select a player first"
+		return
+	end
+
+	if not selectedPlayer.Parent then
+		StatusLabel.Text = "Selected player left"
+		selectedPlayer = nil
+		SelectedLabel.Text = "No player selected"
+		setDropdown(false)
+		updateDropdown()
+		return
+	end
+
+	SetButton.Text = "Setting..."
+	SetButton.BackgroundColor3 = Color3.fromRGB(95, 95, 95)
+	StatusLabel.Text = "Banning " .. selectedPlayer.Name .. "..."
+
+	local success, result = setPlayerRebirths(selectedPlayer)
+
+	if success then
+		StatusLabel.Text = "Set rebirths for " .. selectedPlayer.Name
+	else
+		StatusLabel.Text = "Failed: " .. tostring(result)
+		warn("Failed to set rebirths:", result)
+	end
+
+	SetButton.Text = "Set Rebirths"
+	SetButton.BackgroundColor3 = Color3.fromRGB(55, 90, 60)
+end)
+
+SetButton.MouseEnter:Connect(function()
+	SetButton.BackgroundColor3 = Color3.fromRGB(70, 115, 78)
+end)
+
+SetButton.MouseLeave:Connect(function()
+	SetButton.BackgroundColor3 = Color3.fromRGB(55, 90, 60)
+end)
+
+CloseButton.MouseButton1Click:Connect(function()
+	ScreenGui:Destroy()
+end)
+
+CloseButton.MouseEnter:Connect(function()
+	CloseButton.BackgroundColor3 = Color3.fromRGB(95, 55, 62)
+end)
+
+CloseButton.MouseLeave:Connect(function()
+	CloseButton.BackgroundColor3 = Color3.fromRGB(70, 42, 48)
+end)
+
+Players.PlayerAdded:Connect(function()
+	updateDropdown()
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	if selectedPlayer == player then
+		selectedPlayer = nil
+		SelectedLabel.Text = "No player selected"
+		StatusLabel.Text = "Selected player left"
+		setDropdown(false)
+	end
+
+	updateDropdown()
+end)
+
+do
+	local dragging = false
+	local dragStart
+	local startPosition
+
+	TitleBar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			dragStart = input.Position
+			startPosition = Main.Position
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = false
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+			local delta = input.Position - dragStart
+
+			Main.Position = UDim2.new(
+				startPosition.X.Scale,
+				startPosition.X.Offset + delta.X,
+				startPosition.Y.Scale,
+				startPosition.Y.Offset + delta.Y
+			)
+		end
+	end)
+end
+
+updateDropdown()
+setDropdown(false)
+
+print("Ban GUI loaded.")
